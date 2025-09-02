@@ -4,5 +4,9 @@ pandas
 minio
 pyarrow
 polars
+pandas
 requests
 openpyxl
+duckdb
+streamlit
+altair
