@@ -1,0 +1,8 @@
+dbt-core
+dotenv
+pandas
+minio
+pyarrow
+polars
+requests
+openpyxl

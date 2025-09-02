@@ -1,0 +1,51 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# Environments
+venv/
+.env
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Pytest cache
+.pytest_cache/
+
+# VS Code settings
+.vscode/
+
+#Devcontainer artifacts
+.devcontainer
+*.tar
+*.tar.xz
+*.tar.gz
+
+#Files and temp files
+*.parquet
+*.csv
+*.xlsx
+*.xls
+data/
+
+#Logs
+logs/
+*.log
+src/logs/
+
+profiles.yml
