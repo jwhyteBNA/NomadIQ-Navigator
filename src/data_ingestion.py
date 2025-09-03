@@ -49,6 +49,13 @@ def fetch_all_nps_data(api_key, base_url):
             break
     return all_data
 
+def convert_to_csv(data):
+    df = pd.json_normalize(data)
+    buffer = io.BytesIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
+    return buffer
+
 def convert_to_parquet(data):
     data = pl.json_normalize(data)
     buffer = io.BytesIO()
@@ -58,8 +65,9 @@ def convert_to_parquet(data):
 
 def save_to_minio(buffer, bucket_name, object_name):
     try:
+        ext = object_name.split('.')[-1]
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        timestamped_filename = f"{object_name.split('.')[0]}_{timestamp}.parquet"
+        timestamped_filename = f"{object_name.split('.')[0]}_{timestamp}.{ext}"
         data_bytes = buffer.getvalue()
         minio_client.put_object(
             bucket_name,
