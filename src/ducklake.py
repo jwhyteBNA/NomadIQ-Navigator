@@ -29,8 +29,8 @@ def duckdb_setup():
 
 def ducklake_setup(conn, data_path, catalog_path):
     logger.info(f"Setting up DuckLake connection with data path: {data_path} and catalog path: {catalog_path}")
-    conn.execute(f"ATTACH 'ducklake:{catalog_path}' AS minio_lake (DATA_PATH 's3://{MINIO_BUCKET_NAME}/')")
-    conn.execute("USE minio_lake")
+    conn.execute(f"ATTACH 'ducklake:{catalog_path}' AS my_ducklake (DATA_PATH '{data_path}')")
+    conn.execute("USE my_ducklake")
     return conn
 
 def ducklake_connect_minio(conn):
