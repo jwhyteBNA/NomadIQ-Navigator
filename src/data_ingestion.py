@@ -3,7 +3,6 @@ import io
 import time
 import requests
 import polars as pl
-import pandas as pd
 from minio import Minio
 from datetime import datetime
 from dotenv import load_dotenv
@@ -50,9 +49,9 @@ def fetch_all_nps_data(api_key, base_url):
     return all_data
 
 def convert_to_csv(data):
-    df = pd.json_normalize(data)
+    df = pl.json_normalize(data)
     buffer = io.BytesIO()
-    df.to_csv(buffer, index=False)
+    df.write_csv(buffer)
     buffer.seek(0)
     return buffer
 
