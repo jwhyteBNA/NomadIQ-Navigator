@@ -13,14 +13,16 @@ from prefect.client.schemas.schedules import CronSchedule
 logger = logger_setup("data_ingestion.log")
 load_dotenv()
 
-MINIO_EXTERNAL_URL = os.getenv('MINIO_EXTERNAL_URL')
+
+def get_minio_client():
+    return Minio(
+        os.getenv('MINIO_EXTERNAL_URL'),
+        access_key=os.getenv('MINIO_ACCESS_KEY'),
+        secret_key=os.getenv('MINIO_SECRET_KEY'),
+        secure=False
+    )
+
 MINIO_BUCKET_NAME = os.getenv('MINIO_BUCKET_NAME')
-minio_client = Minio(
-    MINIO_EXTERNAL_URL,
-    access_key=os.getenv('MINIO_ACCESS_KEY'),
-    secret_key=os.getenv('MINIO_SECRET_KEY'),
-    secure=False
-)
 
 PARKS_URL = os.getenv('NPS_PARKS_ENDPOINT')
 ALERTS_URL = os.getenv('NPS_ALERTS_ENDPOINT')
@@ -68,6 +70,7 @@ def convert_to_parquet(data):
 
 @task
 def save_to_minio(buffer, bucket_name, object_name):
+    minio_client = get_minio_client()
     try:
         ext = object_name.split('.')[-1]
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
