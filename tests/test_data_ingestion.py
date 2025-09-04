@@ -30,7 +30,7 @@ def test_save_to_minio_error(monkeypatch):
     class DummyMinio:
         def put_object(self, *args, **kwargs):
             raise Exception("MinIO error")
-    monkeypatch.setattr('src.data_ingestion.minio_client', DummyMinio())
+    monkeypatch.setattr('src.data_ingestion.get_minio_client', lambda: DummyMinio())
     buffer = io.BytesIO(b"test")
     save_to_minio(buffer, 'bucket', 'file.parquet')
 
