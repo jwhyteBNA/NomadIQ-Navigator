@@ -1,21 +1,56 @@
 services:
   minio:
     image: minio/minio:latest
-    container_name: minio
+    container_name: minio_nomadiq
     environment:
-      - MINIO_ROOT_USER= admin
-      - MINIO_ROOT_PASSWORD= password
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
       - MINIO_DOMAIN=storage
       - MINIO_REGION_NAME=us-east-1
       - MINIO_REGION=us-east-1
     ports:
-      - 9001:9001
-      - 9000:9000
+      - "9001:9001"
+      - "9000:9000"
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - minio_data:/data
     networks:
       - default
+
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: prefect_server_nomadiq
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+
+  prefect-init:
+    image: prefecthq/prefect:3-latest
+    container_name: prefect_init
+    command: >
+      /bin/bash -c "
+        sleep 10 &&
+        prefect work-pool create data_ingestion --type process || true
+      "
+    environment:
+      PREFECT_API_URL: "http://prefect-server:4200/api"
+    depends_on:
+      - prefect-server
+
+  prefect-worker:
+    image: prefecthq/prefect:3-latest
+    container_name: prefect_worker
+    command: >
+      /bin/bash -c "
+        sleep 10 &&
+        prefect worker start --pool data_ingestion --work-queue default --base-path /opt/prefect/flows
+      "
+    environment:
+      PREFECT_API_URL: "http://prefect-server:4200/api"
+    depends_on:
+      - prefect-init
+    volumes:
+      - .:/opt/prefect/flows
 
 volumes:
   minio_data:

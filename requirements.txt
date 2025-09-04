@@ -11,3 +11,4 @@ duckdb
 streamlit
 altair
 pytest
+prefect

@@ -7,6 +7,8 @@ from minio import Minio
 from datetime import datetime
 from dotenv import load_dotenv
 from logger import logger_setup
+from prefect import task, flow
+from prefect.client.schemas.schedules import CronSchedule
 
 logger = logger_setup("data_ingestion.log")
 load_dotenv()
@@ -24,7 +26,7 @@ PARKS_URL = os.getenv('NPS_PARKS_ENDPOINT')
 ALERTS_URL = os.getenv('NPS_ALERTS_ENDPOINT')
 NPS_API_KEY = os.getenv('NPS_API_KEY')
 
-
+@task
 def fetch_all_nps_data(api_key, base_url):
     batch_size = 50
     all_data = []
@@ -48,6 +50,7 @@ def fetch_all_nps_data(api_key, base_url):
             break
     return all_data
 
+@task
 def convert_to_csv(data):
     df = pl.json_normalize(data)
     buffer = io.BytesIO()
@@ -55,6 +58,7 @@ def convert_to_csv(data):
     buffer.seek(0)
     return buffer
 
+@task
 def convert_to_parquet(data):
     data = pl.json_normalize(data)
     buffer = io.BytesIO()
@@ -62,6 +66,7 @@ def convert_to_parquet(data):
     buffer.seek(0)
     return buffer
 
+@task
 def save_to_minio(buffer, bucket_name, object_name):
     try:
         ext = object_name.split('.')[-1]
@@ -78,10 +83,10 @@ def save_to_minio(buffer, bucket_name, object_name):
     except Exception as e:
         logger.error(f"Failed to upload {timestamped_filename} to MinIO: {e}")
 
-
-def main():
+@flow()
+def data_ingestion_flow():
     start_time = time.time()
-
+    logger.info("Starting data ingestion process at %s.", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     parks_data = fetch_all_nps_data(NPS_API_KEY, PARKS_URL)
     parks_data_parquet = convert_to_parquet(parks_data)
     save_to_minio(parks_data_parquet, MINIO_BUCKET_NAME, "parks_data.parquet")
@@ -95,4 +100,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    data_ingestion_flow.serve(
+        name="data_ingestion_flow",
+        schedule=CronSchedule(
+            cron="0 2 * * *",
+            timezone="UTC"
+        ),
+        tags=["Pipeline"]
+    )
