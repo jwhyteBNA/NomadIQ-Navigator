@@ -34,7 +34,7 @@ def fetch_all_nps_data(api_key, base_url):
     all_data = []
     start = 0
     total = None
-    while True:
+    while total is None or len(all_data) < total:
         params = {
             "api_key": api_key,
             "limit": batch_size,
@@ -48,8 +48,6 @@ def fetch_all_nps_data(api_key, base_url):
         if total is None:
             total = int(result.get("total", len(data)))
         start += batch_size
-        if len(all_data) >= total:
-            break
     return all_data
 
 @task
@@ -109,5 +107,5 @@ if __name__ == "__main__":
             cron="0 2 * * *",
             timezone="UTC"
         ),
-        tags=["Pipeline"]
+        tags=["Pipeline", "Ingestion"]
     )
