@@ -67,7 +67,7 @@ def table_creation(con, logger, bucket_name):
             table_name = file_name.split('_data_')[0].upper()
 
             logger.info(f"Processing file: {file_path} -> table: {table_name}")
-
+            #Factor this out
             query = f"""
             CREATE OR REPLACE TABLE RAW.{table_name} AS
             SELECT *,
