@@ -3,7 +3,7 @@ import pytest
 import requests
 import polars as pl
 from src.logger import logger_setup
-from src.data_ingestion import convert_to_csv,convert_to_parquet, fetch_all_nps_data, save_to_minio
+from src.utilities import convert_to_csv, convert_json_to_parquet, fetch_all_nps_data, save_to_minio, get_minio_client
 
 def test_convert_to_csv_simple():
     data = [{'a': 1, 'b': 2}]
@@ -15,7 +15,7 @@ def test_convert_to_csv_simple():
 
 def test_convert_to_parquet_simple():
     data = [{'a': 1, 'b': {'c': 2}}]
-    buffer = convert_to_parquet(data)
+    buffer = convert_json_to_parquet(data)
     assert isinstance(buffer, io.BytesIO)
     assert buffer.getbuffer().nbytes > 0
     df = pl.read_parquet(buffer)
@@ -30,7 +30,7 @@ def test_save_to_minio_error(monkeypatch):
     class DummyMinio:
         def put_object(self, *args, **kwargs):
             raise Exception("MinIO error")
-    monkeypatch.setattr('src.data_ingestion.get_minio_client', lambda: DummyMinio())
+    monkeypatch.setattr('src.utilities.get_minio_client', lambda: DummyMinio())
     buffer = io.BytesIO(b"test")
     save_to_minio(buffer, 'bucket', 'file.parquet')
 

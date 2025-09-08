@@ -2,7 +2,7 @@ import os
 import duckdb
 import pytest
 from unittest.mock import patch
-from src.ducklake import duckdb_setup, ducklake_setup
+from src.utilities import duckdb_setup, ducklake_setup, ducklake_schema_creation, table_creation
 
 def test_duckdb_setup_creates_connection(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake.db"
