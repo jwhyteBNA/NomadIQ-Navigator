@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from prefect import task, flow
 from dotenv import load_dotenv
 from logger import logger_setup
 from utilities import duckdb_setup, ducklake_setup, ducklake_connect_minio, ducklake_schema_creation, table_creation
@@ -12,7 +13,8 @@ sys.path.append(parent_path)
 load_dotenv()
 logger = logger_setup("ducklake.log")
 
-def main():
+@flow
+def process_raw_to_ducklake():
     data_path = os.path.join(parent_path, "data")
     catalog_path = os.path.join(parent_path, "catalog.ducklake")
     minio_bucket = os.getenv('MINIO_BUCKET_NAME')
@@ -29,4 +31,4 @@ def main():
     logger.info(f"Data processing completed in {duration:.2f} seconds")
 
 if __name__ == "__main__":
-    main()
+    process_raw_to_ducklake()
