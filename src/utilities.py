@@ -75,7 +75,7 @@ def save_to_minio(buffer, bucket_name, object_name):
     minio_client = get_minio_client()
     try:
         ext = object_name.split('.')[-1]
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         timestamped_filename = f"{object_name.split('.')[0]}_{timestamp}.{ext}"
         data_bytes = buffer.getvalue()
         minio_client.put_object(
@@ -88,7 +88,7 @@ def save_to_minio(buffer, bucket_name, object_name):
     except Exception as e:
         logger.error(f"Failed to upload {timestamped_filename} to MinIO: {e}")
 
-@task
+
 def duckdb_setup():
     try:
         logger.info("Setting up DuckDB connection")
@@ -105,7 +105,7 @@ def duckdb_setup():
         logger.error(f"DuckDB setup failed: {e}")
         raise
 
-@task
+
 def ducklake_setup(conn, data_path, catalog_path):
     try:
         logger.info(f"Setting up DuckLake connection with data path: {data_path} and catalog path: {catalog_path}")
@@ -116,7 +116,7 @@ def ducklake_setup(conn, data_path, catalog_path):
         logger.error(f"DuckLake setup failed: {e}")
         raise
 
-@task
+
 def ducklake_connect_minio(conn):
     try:
         logger.info("Connecting to MinIO")
@@ -131,7 +131,7 @@ def ducklake_connect_minio(conn):
         logger.error(f"Failed to connect to MinIO: {e}")
         raise
 
-@task
+
 def ducklake_schema_creation(conn):
     logger.info("Creating database schemas")
     conn.execute("CREATE SCHEMA IF NOT EXISTS RAW")
@@ -139,37 +139,76 @@ def ducklake_schema_creation(conn):
     conn.execute("CREATE SCHEMA IF NOT EXISTS CURATED")
     logger.info("DuckLake schema created successfully")
 
-@task
-def table_creation(conn, logger, bucket_name): 
-    logger.info("Refreshing database with the most current data")
-    file_list = f"SELECT * FROM glob('s3://{bucket_name}/*.parquet')"
+def get_latest_minio_files(file_paths):
+    sources = {}
+    for path in file_paths:
+        file_name = os.path.basename(path).replace('.parquet', '')
+        parts = file_name.split('_')
+        prefix = '_'.join(parts[:2]) 
+        timestamp = '_'.join(parts[2:])  
+        if prefix not in sources or timestamp > sources[prefix][1]:
+            sources[prefix] = (path, timestamp)
+    return [info[0] for info in sources.values()]
 
-    try:
-        batched_files = conn.execute(file_list).fetchall()
-        file_paths = []
-        for row in batched_files:
-            file_paths.append(row[0])
-        
-        logger.info(f"Found {len(file_paths)} files in MinIO bucket")
-        
-        for file_path in file_paths:
+def remove_old_files(file_paths, latest_files):
+    old_files = set(file_paths) - set(latest_files)
+    for file_path in old_files:
+        try:
+            os.remove(file_path)
+            print(f"Removed old file: {file_path}")
+        except Exception as e:
+            print(f"Failed to remove {file_path}: {e}")
+
+def sync_tables(conn, logger, source_folder, schema="RAW", sql_folder=None, mode="ingest"):
+    logger.info(f"Syncing tables from files in {source_folder} to schema {schema}")
+    if mode == "ingest":
+        file_list_query = f"SELECT * FROM glob('{source_folder}/*.parquet')"
+        batched_files = conn.execute(file_list_query).fetchall()
+        file_paths = [row[0] for row in batched_files]
+        logger.info(f"Total files found: {len(file_paths)}")
+        latest_files = get_latest_minio_files(file_paths)
+        logger.info(f"Number of files processed (latest): {len(latest_files)}")
+        for file_path in latest_files:
             file_name = os.path.basename(file_path).replace('.parquet', '')
-            table_name = file_name.split('_data_')[0].upper()
-
-            logger.info(f"Processing file: {file_path} -> table: {table_name}")
-            #Factor this out
+            source_name = file_name.split('_data')[0].upper()
+            table_name = f"{schema}.{source_name}"
             query = f"""
-            CREATE OR REPLACE TABLE RAW.{table_name} AS
+            CREATE OR REPLACE TABLE {table_name} AS
             SELECT *,
                 '{file_name}' AS _source_file,
                 CURRENT_TIMESTAMP AS _ingestion_timestamp,
                 ROW_NUMBER() OVER () AS _record_id
             FROM read_parquet('{file_path}');
             """
-
             conn.execute(query)
             logger.info(f"Successfully created or updated {table_name}")
+    elif mode == "transform" and sql_folder:
+        for sql_file in os.listdir(sql_folder):
+            if sql_file.endswith('.SQL'):
+                table_name = sql_file.replace('.SQL', '')
+                sql_path = os.path.join(sql_folder, sql_file)
+                with open(sql_path, 'r') as f:
+                    sql_script = f.read()
+                conn.execute(sql_script)
+                logger.info(f"Ran transformation for {table_name}")
+    else:
+        logger.error("Invalid mode or missing sql_folder for transformation.")
 
-    except Exception as e:
-        logger.error(f"Error processing files from MinIO: {e}")
-        raise
+def cleanup_db_folders(folder):
+    for subfolder in os.listdir(folder):
+        subfolder_path = os.path.join(folder, subfolder)
+        if os.path.isdir(subfolder_path):
+            file_paths = [
+                os.path.join(subfolder_path, f)
+                for f in os.listdir(subfolder_path)
+                if f.endswith('.parquet')
+            ]
+            if not file_paths:
+                continue
+            file_paths.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            for file_path in file_paths[1:]:
+                try:
+                    os.remove(file_path)
+                    print(f"Removed old file: {file_path}")
+                except Exception as e:
+                    print(f"Failed to remove {file_path}: {e}")
