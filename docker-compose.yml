@@ -29,7 +29,7 @@ services:
     command: >
       /bin/bash -c "
         sleep 10 &&
-        prefect work-pool create data_ingestion --type process || true
+        prefect work-pool create nomadiq_parks_pipeline_pool --type process || true
       "
     environment:
       PREFECT_API_URL: "http://prefect-server:4200/api"
@@ -42,7 +42,7 @@ services:
     command: >
       /bin/bash -c "
         sleep 10 &&
-        prefect worker start --pool data_ingestion
+        prefect worker start --pool nomadiq_parks_pipeline_pool
       "
     environment:
       PREFECT_API_URL: "http://prefect-server:4200/api"

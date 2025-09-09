@@ -2,7 +2,8 @@ import os
 import duckdb
 import pytest
 from unittest.mock import patch
-from src.utilities import duckdb_setup, ducklake_setup, ducklake_schema_creation, table_creation
+from src.utilities import duckdb_setup, ducklake_setup, ducklake_schema_creation, sync_tables, ducklake_connect_minio
+from src.setup_ducklake import ducklake_setup
 
 def test_duckdb_setup_creates_connection(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake.db"
@@ -35,7 +36,6 @@ def test_ducklake_setup_sql_calls():
     dummy_conn = DummyConn()
     data_path = "/dummy/data"
     catalog_path = "/dummy/catalog"
-    from src.ducklake import ducklake_setup
     ducklake_setup(dummy_conn, data_path, catalog_path)
     assert any("ATTACH 'ducklake:" in call for call in dummy_conn.calls)
     assert any("USE my_ducklake" in call for call in dummy_conn.calls)
@@ -47,8 +47,7 @@ def test_ducklake_connect_minio(monkeypatch):
         def execute(self, query):
             self.calls.append(query)
     dummy_conn = DummyConn()
-    with patch("src.ducklake.os.getenv", side_effect=lambda k: f"dummy_{k}"):
-        from src.ducklake import ducklake_connect_minio
+    with patch("src.setup_ducklake.os.getenv", side_effect=lambda k: f"dummy_{k}"):
         ducklake_connect_minio(dummy_conn)
     assert any("SET s3_access_key_id" in call for call in dummy_conn.calls)
     assert any("SET s3_secret_access_key" in call for call in dummy_conn.calls)
@@ -71,5 +70,4 @@ def test_duckdb_install_extension(tmp_path, monkeypatch):
     db_path = tmp_path / "test_duckdb_install_extension.db"
     original_connect = duckdb.connect
     monkeypatch.setattr("duckdb.connect", lambda database='ducklake.db': original_connect(str(db_path)))
-    from src.ducklake import duckdb_setup
     duckdb_setup()
