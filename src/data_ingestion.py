@@ -16,20 +16,23 @@ NPS_API_KEY = os.getenv('NPS_API_KEY')
 PARKS_URL = os.getenv('NPS_PARKS_ENDPOINT')
 ALERTS_URL = os.getenv('NPS_ALERTS_ENDPOINT')
 
-@flow()
+@flow
 def data_ingestion_flow():
-    start_time = time.time()
-    logger.info("Starting data ingestion process at %s.", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    parks_data = fetch_all_nps_data(NPS_API_KEY, PARKS_URL)
-    parks_data_parquet = convert_json_to_parquet(parks_data)
-    save_to_minio(parks_data_parquet, MINIO_BUCKET_NAME, "parks_data.parquet")
-    alerts_data = fetch_all_nps_data(NPS_API_KEY, ALERTS_URL)
-    alerts_data_parquet = convert_json_to_parquet(alerts_data)
-    save_to_minio(alerts_data_parquet, MINIO_BUCKET_NAME, "alerts_data.parquet")
+    try:
+        start_time = time.time()
+        logger.info("Starting data ingestion process at %s.", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        parks_data = fetch_all_nps_data(NPS_API_KEY, PARKS_URL)
+        parks_data_parquet = convert_json_to_parquet(parks_data)
+        save_to_minio(parks_data_parquet, MINIO_BUCKET_NAME, "parks_data.parquet")
+        alerts_data = fetch_all_nps_data(NPS_API_KEY, ALERTS_URL)
+        alerts_data_parquet = convert_json_to_parquet(alerts_data)
+        save_to_minio(alerts_data_parquet, MINIO_BUCKET_NAME, "alerts_data.parquet")
 
-    end_time = time.time()
-    duration = end_time - start_time
-    logger.info(f"Ingestion process completed in {duration:.2f} seconds.")
+        end_time = time.time()
+        duration = end_time - start_time
+        logger.info(f"Ingestion process completed in {duration:.2f} seconds.")
+    except Exception as e:
+        logger.error(f"Data ingestion failed: {e}")
 
 
 if __name__ == "__main__":
@@ -37,7 +40,7 @@ if __name__ == "__main__":
         name="data_ingestion_flow",
         schedule=CronSchedule(
             cron="0 2 * * *",
-            timezone="UTC"
+            timezone="America/Chicago"
         ),
         tags=["Pipeline", "Ingestion"]
     )
