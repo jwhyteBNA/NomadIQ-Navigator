@@ -1,5 +1,5 @@
 dbt-core
-dotenv
+python-dotenv
 pandas
 minio
 pyarrow
