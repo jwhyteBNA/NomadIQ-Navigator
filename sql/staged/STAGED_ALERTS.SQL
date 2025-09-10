@@ -1,9 +1,9 @@
 CREATE OR REPLACE TABLE STAGED.ALERTS AS
 SELECT
   r.id AS alert_id,
+  NULLIF(UPPER(trim(r.parkCode)), '') AS park_code,
   NULLIF(trim(r.url), '') AS url, 
   r.title,
-  NULLIF(UPPER(trim(r.parkCode)), '') AS parkCode,
   r.description,
   r.category,
   e.related_event_id,
