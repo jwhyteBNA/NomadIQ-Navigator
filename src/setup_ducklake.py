@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from src.logger import logger_setup
-from src.utilities import duckdb_setup, ducklake_setup, ducklake_connect_minio, ducklake_schema_creation
+from src.utilities import duckdb_setup, ducklake_init, ducklake_connect_minio, ducklake_schema_creation
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 parent_path = os.path.abspath(os.path.join(current_path, ".."))
@@ -16,7 +16,7 @@ def setup_ducklake():
     catalog_path = os.path.join(parent_path, "catalog.ducklake")
 
     conn = duckdb_setup()
-    ducklake_setup(conn, data_path, catalog_path)
+    ducklake_init(conn, data_path, catalog_path)
     ducklake_connect_minio(conn)
     ducklake_schema_creation(conn)
     conn.close()

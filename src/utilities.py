@@ -107,7 +107,7 @@ def duckdb_setup():
         raise
 
 
-def ducklake_setup(conn, data_path, catalog_path):
+def ducklake_init(conn, data_path, catalog_path):
     try:
         logger.info(f"Setting up DuckLake connection with data path: {data_path} and catalog path: {catalog_path}")
         conn.execute(f"ATTACH 'ducklake:{catalog_path}' AS my_ducklake (DATA_PATH '{data_path}')")

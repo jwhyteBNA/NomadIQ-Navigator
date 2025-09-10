@@ -4,7 +4,7 @@ import time
 from prefect import task, flow
 from dotenv import load_dotenv
 from src.logger import logger_setup
-from src.utilities import duckdb_setup, ducklake_setup, ducklake_connect_minio, sync_tables, cleanup_db_folders
+from src.utilities import duckdb_setup, ducklake_init, ducklake_connect_minio, sync_tables, cleanup_db_folders
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 parent_path = os.path.abspath(os.path.join(current_path, ".."))
@@ -23,7 +23,7 @@ def ducklake_sync():
     start_time = time.time()
     
     conn = duckdb_setup()
-    ducklake_setup(conn, data_path, catalog_path)
+    ducklake_init(conn, data_path, catalog_path)
     ducklake_connect_minio(conn)
 
     sync_tables(conn, logger, source_folder, schema="RAW", mode="ingest")
