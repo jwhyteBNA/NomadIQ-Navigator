@@ -4,6 +4,7 @@ import time
 from prefect import task, flow
 from dotenv import load_dotenv
 from src.logger import logger_setup
+from src.data_validation import data_quality_checks
 from src.utilities import duckdb_setup, ducklake_init, ducklake_connect_minio, sync_tables, cleanup_db_folders
 
 current_path = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +29,7 @@ def ducklake_sync():
 
     sync_tables(conn, logger, source_folder, schema="RAW", mode="ingest")
     cleanup_db_folders(raw_ducklake_folder)
+    data_quality_checks()
 
     sql_folder = os.path.join(parent_path, "sql")
     staged_folder = os.path.join(sql_folder, "staged")
