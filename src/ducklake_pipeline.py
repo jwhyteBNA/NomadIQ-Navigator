@@ -1,8 +1,8 @@
 import time
 from prefect import flow
 from src.logger import logger_setup
-from dl_sync import ducklake_sync
-from data_ingestion import data_ingestion
+from src.dl_sync import ducklake_sync
+from src.data_ingestion import data_ingestion
 from prefect.client.schemas.schedules import CronSchedule
 
 logger = logger_setup("ducklake_pipeline.log")

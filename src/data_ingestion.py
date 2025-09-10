@@ -2,9 +2,9 @@ import os
 import time
 from datetime import datetime
 from dotenv import load_dotenv
-from logger import logger_setup
 from prefect import task, flow
-from utilities import fetch_all_nps_data, convert_json_to_parquet, save_to_minio
+from src.logger import logger_setup
+from src.utilities import fetch_all_nps_data, convert_json_to_parquet, save_to_minio
 
 logger = logger_setup("data_ingestion.log")
 load_dotenv()

@@ -2,7 +2,7 @@ import os
 import duckdb
 import pytest
 from unittest.mock import patch
-from src.utilities import duckdb_setup, ducklake_setup, ducklake_schema_creation, sync_tables, ducklake_connect_minio
+from src.utilities import duckdb_setup, ducklake_setup, ducklake_connect_minio
 from src.setup_ducklake import ducklake_setup
 
 def test_duckdb_setup_creates_connection(tmp_path, monkeypatch):
