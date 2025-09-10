@@ -1,5 +1,5 @@
 dbt-core
-dotenv
+python-dotenv
 pandas
 minio
 pyarrow
@@ -12,3 +12,4 @@ streamlit
 altair
 pytest
 prefect
+great_expectations==1.5.5

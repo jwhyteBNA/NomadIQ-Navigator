@@ -1,10 +1,10 @@
 CREATE OR REPLACE TABLE STAGED.PARKS AS
 SELECT
     id,
-    parkCode,
+    UPPER(trim(r.parkCode)) AS parkCode,
     fullName,
     name,
-    designation,
+    NULLIF(trim(designation), '') AS designation, 
     description,
     states,
     CAST(NULLIF(latitude, '') AS DOUBLE) AS latitude,

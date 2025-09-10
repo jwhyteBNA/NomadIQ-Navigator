@@ -14,8 +14,7 @@ services:
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - minio_data:/data
-    networks:
-      - default
+
 
   prefect-server:
     image: prefecthq/prefect:3-latest
@@ -30,7 +29,7 @@ services:
     command: >
       /bin/bash -c "
         sleep 10 &&
-        prefect work-pool create data_ingestion --type process || true
+        prefect work-pool create nomadiq_parks_pipeline_pool --type process || true
       "
     environment:
       PREFECT_API_URL: "http://prefect-server:4200/api"
@@ -43,17 +42,12 @@ services:
     command: >
       /bin/bash -c "
         sleep 10 &&
-        prefect worker start --pool data_ingestion --work-queue default --base-path /opt/prefect/flows
+        prefect worker start --pool nomadiq_parks_pipeline_pool
       "
     environment:
       PREFECT_API_URL: "http://prefect-server:4200/api"
     depends_on:
       - prefect-init
-    volumes:
-      - .:/opt/prefect/flows
 
 volumes:
   minio_data:
-
-networks:
-  default:
