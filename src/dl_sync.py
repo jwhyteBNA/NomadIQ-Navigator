@@ -3,8 +3,8 @@ import sys
 import time
 from prefect import task, flow
 from dotenv import load_dotenv
-from logger import logger_setup
-from utilities import duckdb_setup, ducklake_setup, ducklake_connect_minio, sync_tables, cleanup_db_folders
+from src.logger import logger_setup
+from src.utilities import duckdb_setup, ducklake_setup, ducklake_connect_minio, sync_tables, cleanup_db_folders
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 parent_path = os.path.abspath(os.path.join(current_path, ".."))

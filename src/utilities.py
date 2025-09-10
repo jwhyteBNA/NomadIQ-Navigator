@@ -7,7 +7,7 @@ from minio import Minio
 from prefect import task
 from datetime import datetime
 from dotenv import load_dotenv
-from logger import logger_setup
+from src.logger import logger_setup
 
 load_dotenv()
 logger = logger_setup("utilities.log")
@@ -46,6 +46,7 @@ def fetch_all_nps_data(api_key, base_url):
         return all_data
     except Exception as e:
         logger.error(f"Error fetching NPS data: {e}")
+        raise
 
 @task
 def convert_to_csv(data):
