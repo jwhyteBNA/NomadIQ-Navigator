@@ -160,8 +160,17 @@ def remove_old_files(file_paths, latest_files):
         except Exception as e:
             print(f"Failed to remove {file_path}: {e}")
 
-def sync_tables(conn, logger, source_folder, schema="RAW", sql_folder=None, mode="ingest"):
+
+def sync_tables(conn, logger, source_folder, schema="RAW", mode=None):
     logger.info(f"Syncing tables from files in {source_folder} to schema {schema}")
+    if source_folder and str(source_folder).startswith("s3://"):
+        mode = "ingest"
+    elif source_folder and os.path.isdir(source_folder):
+        mode = "transform"
+    else:
+        logger.error("Invalid source_folder or unable to determine mode.")
+        return
+
     if mode == "ingest":
         file_list_query = f"SELECT * FROM glob('{source_folder}/*.parquet')"
         batched_files = conn.execute(file_list_query).fetchall()
@@ -183,17 +192,21 @@ def sync_tables(conn, logger, source_folder, schema="RAW", sql_folder=None, mode
             """
             conn.execute(query)
             logger.info(f"Successfully created or updated {table_name}")
-    elif mode == "transform" and sql_folder:
-        for sql_file in os.listdir(sql_folder):
-            if sql_file.endswith('.SQL'):
-                table_name = sql_file.replace('.SQL', '')
-                sql_path = os.path.join(sql_folder, sql_file)
-                with open(sql_path, 'r') as f:
-                    sql_script = f.read()
-                conn.execute(sql_script)
-                logger.info(f"Ran transformation for {table_name}")
+    elif mode == "transform":
+        sql_files = [f for f in os.listdir(source_folder) if f.lower().endswith('.sql')]
+        logger.info(f"Total SQL files found: {len(sql_files)} in {source_folder}")
+        if not sql_files:
+            logger.warning(f"No .SQL files found in {source_folder}")
+        for sql_file in sql_files:
+            table_name = sql_file.replace('.SQL', '').replace('.sql', '')
+            sql_path = os.path.join(source_folder, sql_file)
+            with open(sql_path, 'r') as f:
+                sql_script = f.read()
+            conn.execute(sql_script)
+            logger.info(f"Ran transformation for {table_name}")
     else:
         logger.error("Invalid mode or missing sql_folder for transformation.")
+
 
 def cleanup_db_folders(folder):
     for subfolder in os.listdir(folder):
