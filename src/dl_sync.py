@@ -14,7 +14,8 @@ sys.path.append(parent_path)
 logger = logger_setup("dl_sync.log")
 load_dotenv()
 
- 
+
+@flow
 def ducklake_sync():
     logger.info("Starting DuckLake sync flow")
     data_path = os.path.join(parent_path, "data")
@@ -37,8 +38,8 @@ def ducklake_sync():
     sync_tables(conn, logger, staged_sql_folder, schema="STAGED", mode="transform")
     cleanup_db_folders(staged_ducklake_folder)
 
-    # curated_folder = os.path.join(sql_folder, "curated")
-    # sync_tables(conn, logger, curated_folder, schema="CURATED", mode="transform")
+    curated_sql_folder = os.path.join(transform_folder, "curated")
+    sync_tables(conn, logger, curated_sql_folder, schema="CURATED", mode="transform")
 
     conn.close()
     logger.info("DuckLake connection closed")
@@ -47,5 +48,3 @@ def ducklake_sync():
     duration = end_time - start_time
     logger.info(f"Data processing completed in {duration:.2f} seconds")
 
-if __name__ == "__main__":
-    ducklake_sync()
