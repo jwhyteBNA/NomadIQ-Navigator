@@ -1,4 +1,4 @@
-CREATE TABLE STAGED.STATE_ABBREVIATIONS AS
+CREATE OR REPLACE TABLE STAGED.STATE_ABBREVIATIONS AS
 SELECT * FROM (VALUES
   ('Alabama', 'AL'), ('Alaska', 'AK'), ('Arizona', 'AZ'), ('Arkansas', 'AR'),
   ('California', 'CA'), ('Colorado', 'CO'), ('Connecticut', 'CT'), ('Delaware', 'DE'),

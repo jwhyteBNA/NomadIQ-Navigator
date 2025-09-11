@@ -89,7 +89,7 @@ def save_to_minio(buffer, bucket_name, object_name):
     except Exception as e:
         logger.error(f"Failed to upload {timestamped_filename} to MinIO: {e}")
 
-
+@task
 def duckdb_setup():
     try:
         logger.info("Setting up DuckDB connection")
@@ -106,7 +106,7 @@ def duckdb_setup():
         logger.error(f"DuckDB setup failed: {e}")
         raise
 
-
+@task
 def ducklake_init(conn, data_path, catalog_path):
     try:
         logger.info(f"Setting up DuckLake connection with data path: {data_path} and catalog path: {catalog_path}")
@@ -132,7 +132,7 @@ def ducklake_connect_minio(conn):
         logger.error(f"Failed to connect to MinIO: {e}")
         raise
 
-
+@task
 def ducklake_schema_creation(conn):
     logger.info("Creating database schemas")
     conn.execute("CREATE SCHEMA IF NOT EXISTS RAW")
@@ -140,6 +140,7 @@ def ducklake_schema_creation(conn):
     conn.execute("CREATE SCHEMA IF NOT EXISTS CURATED")
     logger.info("DuckLake schema created successfully")
 
+@task
 def get_latest_minio_files(file_paths):
     sources = {}
     for path in file_paths:
@@ -151,6 +152,7 @@ def get_latest_minio_files(file_paths):
             sources[prefix] = (path, timestamp)
     return [info[0] for info in sources.values()]
 
+@task
 def remove_old_files(file_paths, latest_files):
     old_files = set(file_paths) - set(latest_files)
     for file_path in old_files:
@@ -160,7 +162,7 @@ def remove_old_files(file_paths, latest_files):
         except Exception as e:
             print(f"Failed to remove {file_path}: {e}")
 
-
+@task
 def sync_tables(conn, logger, source_folder, schema="RAW", mode=None):
     logger.info(f"Syncing tables from files in {source_folder} to schema {schema}")
     if source_folder and str(source_folder).startswith("s3://"):
@@ -207,7 +209,7 @@ def sync_tables(conn, logger, source_folder, schema="RAW", mode=None):
     else:
         logger.error("Invalid mode or missing sql_folder for transformation.")
 
-
+@task
 def cleanup_db_folders(folder):
     for subfolder in os.listdir(folder):
         subfolder_path = os.path.join(folder, subfolder)
