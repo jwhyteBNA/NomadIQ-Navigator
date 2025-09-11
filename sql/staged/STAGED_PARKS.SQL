@@ -1,7 +1,7 @@
 CREATE OR REPLACE TABLE STAGED.PARKS AS
 SELECT
     id,
-    UPPER(trim(r.parkCode)) AS parkCode,
+    UPPER(trim(parkCode)) AS park_code,
     fullName,
     name,
     NULLIF(trim(designation), '') AS designation, 

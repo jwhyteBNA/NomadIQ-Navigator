@@ -31,10 +31,10 @@ def ducklake_sync():
     cleanup_db_folders(raw_ducklake_folder)
     data_quality_checks()
 
-    sql_folder = os.path.join(parent_path, "sql")
-    staged_folder = os.path.join(sql_folder, "staged")
+    transform_folder = os.path.join(parent_path, "sql")
+    staged_sql_folder = os.path.join(transform_folder, "staged")
     staged_ducklake_folder = os.path.join(data_path, "STAGED")
-    sync_tables(conn, logger, staged_folder, schema="STAGED", mode="transform")
+    sync_tables(conn, logger, staged_sql_folder, schema="STAGED", mode="transform")
     cleanup_db_folders(staged_ducklake_folder)
 
     # curated_folder = os.path.join(sql_folder, "curated")
