@@ -5,6 +5,7 @@ import requests
 import polars as pl
 from minio import Minio
 from prefect import task
+from prefect.cache_policies import NO_CACHE
 from datetime import datetime
 from dotenv import load_dotenv
 from src.logger import logger_setup
@@ -89,7 +90,6 @@ def save_to_minio(buffer, bucket_name, object_name):
     except Exception as e:
         logger.error(f"Failed to upload {timestamped_filename} to MinIO: {e}")
 
-@task
 def duckdb_setup():
     try:
         logger.info("Setting up DuckDB connection")
@@ -106,7 +106,6 @@ def duckdb_setup():
         logger.error(f"DuckDB setup failed: {e}")
         raise
 
-@task
 def ducklake_init(conn, data_path, catalog_path):
     try:
         logger.info(f"Setting up DuckLake connection with data path: {data_path} and catalog path: {catalog_path}")
@@ -132,7 +131,7 @@ def ducklake_connect_minio(conn):
         logger.error(f"Failed to connect to MinIO: {e}")
         raise
 
-@task
+
 def ducklake_schema_creation(conn):
     logger.info("Creating database schemas")
     conn.execute("CREATE SCHEMA IF NOT EXISTS RAW")
@@ -162,7 +161,7 @@ def remove_old_files(file_paths, latest_files):
         except Exception as e:
             print(f"Failed to remove {file_path}: {e}")
 
-@task
+
 def sync_tables(conn, logger, source_folder, schema="RAW", mode=None):
     logger.info(f"Syncing tables from files in {source_folder} to schema {schema}")
     if source_folder and str(source_folder).startswith("s3://"):

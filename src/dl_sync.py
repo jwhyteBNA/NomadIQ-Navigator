@@ -39,7 +39,9 @@ def ducklake_sync():
     cleanup_db_folders(staged_ducklake_folder)
 
     curated_sql_folder = os.path.join(transform_folder, "curated")
+    curated_ducklake_folder = os.path.join(data_path, "CURATED")
     sync_tables(conn, logger, curated_sql_folder, schema="CURATED", mode="transform")
+    cleanup_db_folders(curated_ducklake_folder)
 
     conn.close()
     logger.info("DuckLake connection closed")
