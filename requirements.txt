@@ -12,3 +12,5 @@ streamlit
 altair
 pytest
 prefect
+fastapi
+uvicorn
