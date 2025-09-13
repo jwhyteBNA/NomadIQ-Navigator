@@ -8,7 +8,7 @@ from src.setup_ducklake import setup_ducklake
 def test_duckdb_setup_creates_connection(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake.db"
     original_connect = duckdb.connect
-    monkeypatch.setattr("duckdb.connect", lambda database: original_connect(str(db_path)))
+    monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
     
     conn = duckdb_setup()
     assert isinstance(conn, duckdb.DuckDBPyConnection)
@@ -18,7 +18,7 @@ def test_duckdb_setup_creates_connection(tmp_path, monkeypatch):
 def test_ducklake_catalog_and_schema_creation(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake_catalog_and_schema_creation.db"
     original_connect = duckdb.connect
-    monkeypatch.setattr("duckdb.connect", lambda database='ducklake.db': original_connect(str(db_path)))
+    monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
     conn = duckdb_setup()
     data_path = str(tmp_path / "data")
     catalog_path = str(tmp_path / "catalog")
@@ -56,7 +56,7 @@ def test_ducklake_connect_minio(monkeypatch):
 def test_ducklake_init_with_invalid_path(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake_init_with_invalid_path.db"
     original_connect = duckdb.connect
-    monkeypatch.setattr("duckdb.connect", lambda database='ducklake.db': original_connect(str(db_path)))
+    monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
     conn = duckdb_setup()
     data_path = "/invalid/path"
     catalog_path = "/invalid/catalog"
@@ -69,5 +69,5 @@ def test_duckdb_install_extension(tmp_path, monkeypatch):
     monkeypatch.setattr("duckdb.load_extension", lambda ext: None)
     db_path = tmp_path / "test_duckdb_install_extension.db"
     original_connect = duckdb.connect
-    monkeypatch.setattr("duckdb.connect", lambda database='ducklake.db': original_connect(str(db_path)))
+    monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
     duckdb_setup()
