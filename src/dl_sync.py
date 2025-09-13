@@ -14,7 +14,8 @@ sys.path.append(parent_path)
 logger = logger_setup("dl_sync.log")
 load_dotenv()
 
- 
+
+@flow
 def ducklake_sync():
     logger.info("Starting DuckLake sync flow")
     data_path = os.path.join(parent_path, "data")
@@ -23,7 +24,7 @@ def ducklake_sync():
     source_folder = f"s3://{os.getenv('MINIO_BUCKET_NAME')}"
     start_time = time.time()
     
-    conn = duckdb_setup()
+    conn = duckdb_setup(read_only=False)
     ducklake_init(conn, data_path, catalog_path)
     ducklake_connect_minio(conn)
 
@@ -31,14 +32,16 @@ def ducklake_sync():
     cleanup_db_folders(raw_ducklake_folder)
     data_quality_checks()
 
-    sql_folder = os.path.join(parent_path, "sql")
-    staged_folder = os.path.join(sql_folder, "staged")
+    transform_folder = os.path.join(parent_path, "sql")
+    staged_sql_folder = os.path.join(transform_folder, "staged")
     staged_ducklake_folder = os.path.join(data_path, "STAGED")
-    sync_tables(conn, logger, staged_folder, schema="STAGED", mode="transform")
+    sync_tables(conn, logger, staged_sql_folder, schema="STAGED", mode="transform")
     cleanup_db_folders(staged_ducklake_folder)
 
-    # curated_folder = os.path.join(sql_folder, "curated")
-    # sync_tables(conn, logger, curated_folder, schema="CURATED", mode="transform")
+    curated_sql_folder = os.path.join(transform_folder, "curated")
+    curated_ducklake_folder = os.path.join(data_path, "CURATED")
+    sync_tables(conn, logger, curated_sql_folder, schema="CURATED", mode="transform")
+    cleanup_db_folders(curated_ducklake_folder)
 
     conn.close()
     logger.info("DuckLake connection closed")
@@ -47,5 +50,3 @@ def ducklake_sync():
     duration = end_time - start_time
     logger.info(f"Data processing completed in {duration:.2f} seconds")
 
-if __name__ == "__main__":
-    ducklake_sync()
