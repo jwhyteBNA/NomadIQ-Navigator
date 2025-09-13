@@ -24,8 +24,8 @@ mock_ducklake_init,
 	assert mock_duckdb_setup.called
 	assert mock_ducklake_init.called
 	assert mock_ducklake_connect_minio.called
-	assert mock_sync_tables.call_count == 2
-	assert mock_cleanup_db_folders.call_count == 2
+	assert mock_sync_tables.call_count == 3
+	assert mock_cleanup_db_folders.call_count == 3
 
 def test_ducklake_sync_missing_env(monkeypatch):
 	monkeypatch.delenv("MINIO_BUCKET_NAME", raising=False)
@@ -64,4 +64,4 @@ mock_ducklake_init,
 	os.environ["MINIO_BUCKET_NAME"] = "test-bucket"
 	with mock.patch("os.path.join", return_value=""):
 		ducklake_sync()
-	assert mock_sync_tables.call_count == 2
+	assert mock_sync_tables.call_count == 3

@@ -5,6 +5,7 @@ import requests
 import polars as pl
 from minio import Minio
 from prefect import task
+from prefect.cache_policies import NO_CACHE
 from datetime import datetime
 from dotenv import load_dotenv
 from src.logger import logger_setup
@@ -89,8 +90,7 @@ def save_to_minio(buffer, bucket_name, object_name):
     except Exception as e:
         logger.error(f"Failed to upload {timestamped_filename} to MinIO: {e}")
 
-
-def duckdb_setup():
+def duckdb_setup(read_only=False):
     try:
         logger.info("Setting up DuckDB connection")
         duckdb.install_extension("ducklake")
@@ -98,14 +98,12 @@ def duckdb_setup():
         duckdb.load_extension("ducklake")
         duckdb.load_extension("httpfs")
         logger.info("DuckDB extensions loaded successfully")
-
-        conn = duckdb.connect(database='ducklake.db')
-        logger.info("DuckDB database connected")
+        conn = duckdb.connect(database='ducklake.db', read_only=read_only)
+        logger.info("DuckDB database connected (read_only={read_only})")
         return conn
     except Exception as e:
         logger.error(f"DuckDB setup failed: {e}")
         raise
-
 
 def ducklake_init(conn, data_path, catalog_path):
     try:
@@ -140,6 +138,7 @@ def ducklake_schema_creation(conn):
     conn.execute("CREATE SCHEMA IF NOT EXISTS CURATED")
     logger.info("DuckLake schema created successfully")
 
+@task
 def get_latest_minio_files(file_paths):
     sources = {}
     for path in file_paths:
@@ -151,6 +150,7 @@ def get_latest_minio_files(file_paths):
             sources[prefix] = (path, timestamp)
     return [info[0] for info in sources.values()]
 
+@task
 def remove_old_files(file_paths, latest_files):
     old_files = set(file_paths) - set(latest_files)
     for file_path in old_files:
@@ -160,8 +160,17 @@ def remove_old_files(file_paths, latest_files):
         except Exception as e:
             print(f"Failed to remove {file_path}: {e}")
 
-def sync_tables(conn, logger, source_folder, schema="RAW", sql_folder=None, mode="ingest"):
+
+def sync_tables(conn, logger, source_folder, schema="RAW", mode=None):
     logger.info(f"Syncing tables from files in {source_folder} to schema {schema}")
+    if source_folder and str(source_folder).startswith("s3://"):
+        mode = "ingest"
+    elif source_folder and os.path.isdir(source_folder):
+        mode = "transform"
+    else:
+        logger.error("Invalid source_folder or unable to determine mode.")
+        return
+
     if mode == "ingest":
         file_list_query = f"SELECT * FROM glob('{source_folder}/*.parquet')"
         batched_files = conn.execute(file_list_query).fetchall()
@@ -183,18 +192,22 @@ def sync_tables(conn, logger, source_folder, schema="RAW", sql_folder=None, mode
             """
             conn.execute(query)
             logger.info(f"Successfully created or updated {table_name}")
-    elif mode == "transform" and sql_folder:
-        for sql_file in os.listdir(sql_folder):
-            if sql_file.endswith('.SQL'):
-                table_name = sql_file.replace('.SQL', '')
-                sql_path = os.path.join(sql_folder, sql_file)
-                with open(sql_path, 'r') as f:
-                    sql_script = f.read()
-                conn.execute(sql_script)
-                logger.info(f"Ran transformation for {table_name}")
+    elif mode == "transform":
+        sql_files = [f for f in os.listdir(source_folder) if f.lower().endswith('.sql')]
+        logger.info(f"Total SQL files found: {len(sql_files)} in {source_folder}")
+        if not sql_files:
+            logger.warning(f"No .SQL files found in {source_folder}")
+        for sql_file in sql_files:
+            table_name = sql_file.replace('.SQL', '').replace('.sql', '')
+            sql_path = os.path.join(source_folder, sql_file)
+            with open(sql_path, 'r') as f:
+                sql_script = f.read()
+            conn.execute(sql_script)
+            logger.info(f"Ran transformation for {table_name}")
     else:
         logger.error("Invalid mode or missing sql_folder for transformation.")
 
+@task
 def cleanup_db_folders(folder):
     for subfolder in os.listdir(folder):
         subfolder_path = os.path.join(folder, subfolder)
