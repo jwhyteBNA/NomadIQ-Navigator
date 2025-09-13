@@ -90,7 +90,7 @@ def save_to_minio(buffer, bucket_name, object_name):
     except Exception as e:
         logger.error(f"Failed to upload {timestamped_filename} to MinIO: {e}")
 
-def duckdb_setup():
+def duckdb_setup(read_only=False):
     try:
         logger.info("Setting up DuckDB connection")
         duckdb.install_extension("ducklake")
@@ -98,9 +98,8 @@ def duckdb_setup():
         duckdb.load_extension("ducklake")
         duckdb.load_extension("httpfs")
         logger.info("DuckDB extensions loaded successfully")
-
-        conn = duckdb.connect(database='ducklake.db')
-        logger.info("DuckDB database connected")
+        conn = duckdb.connect(database='ducklake.db', read_only=read_only)
+        logger.info("DuckDB database connected (read_only={read_only})")
         return conn
     except Exception as e:
         logger.error(f"DuckDB setup failed: {e}")

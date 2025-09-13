@@ -24,7 +24,7 @@ def ducklake_sync():
     source_folder = f"s3://{os.getenv('MINIO_BUCKET_NAME')}"
     start_time = time.time()
     
-    conn = duckdb_setup()
+    conn = duckdb_setup(read_only=False)
     ducklake_init(conn, data_path, catalog_path)
     ducklake_connect_minio(conn)
 
