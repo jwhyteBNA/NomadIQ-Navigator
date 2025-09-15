@@ -7,6 +7,7 @@ SELECT
     p.longitude,
     p.designation,
     p.description,
+    p.url,
     a.line1 AS address_line1,
     a.line2 AS address_line2,
     a.city AS address_city,
