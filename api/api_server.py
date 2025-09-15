@@ -17,6 +17,7 @@ def get_park_profile(name: Optional[str] = None, state: Optional[str] = None, de
     """
     Returns park profile information, optionally filtered by park name and/or national designation (case-insensitive, partial match).
     """
+    logger.info(f"/park_profile called with name={name}, state={state}, designation={designation}")
     try:
         base_query = "SELECT * FROM CURATED.NPS_PARK_PROFILE"
         params = []
@@ -35,10 +36,10 @@ def get_park_profile(name: Optional[str] = None, state: Optional[str] = None, de
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
+        logger.info(f"/park_profile query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /park_profile endpoint: {e}")
+        logger.error(f"Error in /park_profile endpoint: {e}")
         return {"error": str(e)}
 
 @app.get("/park_alerts")
@@ -46,6 +47,7 @@ def get_park_alerts(park_name: Optional[str] = None, category: Optional[str] = N
     """
     Returns park alerts, optionally filtered by park name and alert category (case-insensitive, partial match).
     """
+    logger.info(f"/park_alerts called with park_name={park_name}, category={category}")
     try:
         base_query = "SELECT * FROM CURATED.PARK_ALERTS"
         params = []
@@ -61,10 +63,10 @@ def get_park_alerts(park_name: Optional[str] = None, category: Optional[str] = N
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
+        logger.info(f"/park_alerts query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /park_alerts endpoint: {e}")
+        logger.error(f"Error in /park_alerts endpoint: {e}")
         return {"error": str(e)}
 
 @app.get("/nps_distances")
@@ -73,6 +75,7 @@ def get_nps_distances(starting_national_park: Optional[str] = None):
     Finds the distances between national parks.
     Optionally filter by starting national park (case-insensitive, partial match).
     """
+    logger.info(f"/nps_distances called with starting_national_park={starting_national_park}")
     try:
         if starting_national_park:
             query = "SELECT * FROM CURATED.NPS_DISTANCES WHERE LOWER(starting_national_park) LIKE ?"
@@ -81,10 +84,10 @@ def get_nps_distances(starting_national_park: Optional[str] = None):
         else:
             query = "SELECT * FROM CURATED.NPS_DISTANCES"
             result = conn.execute(query).fetchdf()
+        logger.info(f"/nps_distances query: {query}")
         return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /nps_distances endpoint: {e}")
+        logger.error(f"Error in /nps_distances endpoint: {e}")
         return {"error": str(e)}
     
 @app.get("/nps_parks_to_landmarks")
@@ -94,15 +97,19 @@ def get_nps_parks_to_landmarks(
     landmark_city: Optional[str] = None,
     landmark_county: Optional[str] = None,
     landmark_state: Optional[str] = None,
-    limit: int = 100,
+    level_of_significance: Optional[str] = None,        
+    area_of_significance: Optional[str] = None,          
+    category_of_property: Optional[str] = None,     
+    limit: int = 5000,
     offset: int = 0
 ):
     """
-    Finds parks and their associated landmarks, with optional filters for park name, property name, city, county, and state (all case-insensitive, partial match).
+    Finds parks and their associated landmarks, with optional filters for park name, property name, city, county, and state, as well as area of significance, level of significance, and category of property (all case-insensitive, partial match).
     Supports pagination with limit and offset.
     """
+    logger.info(f"/nps_parks_to_landmarks called with park_name={park_name}, property_name={property_name}, landmark_city={landmark_city}, landmark_county={landmark_county}, landmark_state={landmark_state}, level_of_significance={level_of_significance}, area_of_significance={area_of_significance}, category_of_property={category_of_property}, limit={limit}, offset={offset}")
     try:
-        base_query = "SELECT park_name, property_name, landmark_city, landmark_county, landmark_state FROM CURATED.NPS_PARKS_TO_LANDMARKS"
+        base_query = "SELECT park_name, property_name AS nearby_landmark, landmark_address AS address, landmark_city AS city, landmark_county AS county, landmark_state AS state, listed_date, level_of_significance, area_of_significance, category_of_property FROM CURATED.NPS_PARKS_TO_LANDMARKS"
         params = []
         conditions = []
         if park_name:
@@ -120,26 +127,91 @@ def get_nps_parks_to_landmarks(
         if landmark_state:
             conditions.append("LOWER(landmark_state) LIKE ?")
             params.append(f"%{landmark_state.lower()}%")
+        if level_of_significance:
+            conditions.append("LOWER(level_of_significance) LIKE ?")
+            params.append(f"%{level_of_significance.lower()}%")
+        if area_of_significance:
+            conditions.append("LOWER(area_of_significance) LIKE ?")
+            params.append(f"%{area_of_significance.lower()}%")
+        if category_of_property:
+            conditions.append("LOWER(category_of_property) LIKE ?")
+            params.append(f"%{category_of_property.lower()}%")
         if conditions:
             query = base_query + " WHERE " + " AND ".join(conditions)
         else:
             query = base_query
         query += f" LIMIT {limit} OFFSET {offset}"
         result = conn.execute(query, params).fetchdf()
+        logger.info(f"/nps_parks_to_landmarks query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /nps_parks_to_landmarks endpoint: {e}")
+        logger.error(f"Error in /nps_parks_to_landmarks endpoint: {e}")
         return {"error": str(e)}
-
-@app.get("/nps_park_usage_annual")
-def get_nps_park_usage_annual(park_name: Optional[str] = None, year: Optional[int] = None):
+    
+@app.get("/landmarks_summary")
+def get_landmarks_summary(state: Optional[str] = None, state_abbr: Optional[str] = None):
     """
-    Returns annual usage statistics for national parks.
-    Optionally filter by park name (case-insensitive, partial match) and year.
+    Returns summary statistics for landmarks: counts by state, state_abbr, category_of_property, and level_of_significance.
+    Optionally filter by state or state_abbr (case-insensitive, partial match).
     """
     try:
-        base_query = "SELECT * FROM CURATED.NPS_PARK_USAGE_ANNUAL"
+        params = []
+        conditions = []
+        if state:
+            conditions.append("LOWER(state) LIKE ?")
+            params.append(f"%{state.lower()}%")
+        if state_abbr:
+            conditions.append("LOWER(state_abbr) LIKE ?")
+            params.append(f"%{state_abbr.lower()}%")
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+        state_query = f"""
+            SELECT state, state_abbr, COUNT(*) AS count
+            FROM CURATED.NATL_LANDMARKS
+            {where_clause}
+            GROUP BY state, state_abbr
+            ORDER BY count DESC
+        """
+        category_query = f"""
+            SELECT state, state_abbr, category_of_property, COUNT(*) AS count
+            FROM CURATED.NATL_LANDMARKS
+            {where_clause}
+            GROUP BY state, state_abbr, category_of_property
+            ORDER BY state, count DESC
+        """
+        level_query = f"""
+            SELECT state, state_abbr, level_of_significance, COUNT(*) AS count
+            FROM CURATED.NATL_LANDMARKS
+            {where_clause}
+            GROUP BY state, state_abbr, level_of_significance
+            ORDER BY state, count DESC
+        """
+        state_stats = conn.execute(state_query, params).fetchdf().to_dict(orient="records")
+        category_stats = conn.execute(category_query, params).fetchdf().to_dict(orient="records")
+        level_stats = conn.execute(level_query, params).fetchdf().to_dict(orient="records")
+        return {
+            "by_state": state_stats,
+            "by_category": category_stats,
+            "by_level": level_stats
+        }
+    except Exception as e:
+        logger.error(f"Error in /landmarks_summary endpoint: {e}")
+        return {"error": str(e)}
+
+@app.get("/nps_park_usage_monthly")
+def get_nps_park_usage_monthly(park_name: Optional[str] = None, year: Optional[int] = None):
+    """
+    Returns monthly usage statistics for national parks.
+    Optionally filter by park name (case-insensitive, partial match) and year.
+    """
+    logger.info(f"/nps_park_usage_monthly called with park_name={park_name}, year={year}")
+    try:
+        if not park_name and not year:
+            base_query = "SELECT park_name, Year, Month, RecreationVisits FROM CURATED.NPS_PARK_USAGE_ANNUAL"
+        else:
+            base_query = "SELECT * FROM CURATED.NPS_PARK_USAGE_ANNUAL"
         params = []
         conditions = []
         if park_name:
@@ -153,20 +225,21 @@ def get_nps_park_usage_annual(park_name: Optional[str] = None, year: Optional[in
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
+        logger.info(f"/nps_park_usage_annual query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /nps_park_usage_annual endpoint: {e}")
+        logger.error(f"Error in /nps_park_usage_annual endpoint: {e}")
         return {"error": str(e)}
     
 @app.get("/park_usage_summarized")
-def get_park_usage_summarized(park_name: Optional[str] = None, year: Optional[int] = None):
+def get_park_usage_summarized(park_name: Optional[str] = None, year: Optional[int] = None, aggregate: Optional[bool] = False):
     """
     Returns summarized park usage statistics.
     Optionally filter by park name (case-insensitive, partial match) and year.
+    If aggregate=True and no park_name is provided, returns annual totals for all parks combined.
     """
+    logger.info(f"/park_usage_summarized called with park_name={park_name}, year={year}, aggregate={aggregate}")
     try:
-        base_query = "SELECT * FROM CURATED.PARK_USAGE_SUMMARIZED"
         params = []
         conditions = []
         if park_name:
@@ -175,15 +248,37 @@ def get_park_usage_summarized(park_name: Optional[str] = None, year: Optional[in
         if year:
             conditions.append("year = ?")
             params.append(year)
-        if conditions:
-            query = base_query + " WHERE " + " AND ".join(conditions)
+        if aggregate and not park_name:
+            # Aggregate annual totals for all parks
+            where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+            query = f"""
+                SELECT year,
+                       SUM(total_recreation_visits) AS total_recreation_visits,
+                       SUM(total_non_recreation_visits) AS total_non_recreation_visits,
+                       SUM(total_concessioner_camping) AS total_concessioner_camping,
+                       SUM(total_tent_campers) AS total_tent_campers,
+                       SUM(total_rv_campers) AS total_rv_campers
+                FROM CURATED.PARK_USAGE_SUMMARIZED
+                {where_clause}
+                GROUP BY year
+                ORDER BY year
+            """
+            result = conn.execute(query, params).fetchdf()
+            logger.info(f"/park_usage_summarized aggregate query: {query} params: {params}")
+            # Replace NaN with 0 for JSON compliance
+            result = result.fillna(0)
+            return result.to_dict(orient="records")
         else:
-            query = base_query
-        result = conn.execute(query, params).fetchdf()
-        return result.to_dict(orient="records")
+            base_query = "SELECT * FROM CURATED.PARK_USAGE_SUMMARIZED"
+            if conditions:
+                query = base_query + " WHERE " + " AND ".join(conditions)
+            else:
+                query = base_query
+            result = conn.execute(query, params).fetchdf()
+            logger.info(f"/park_usage_summarized query: {query} params: {params}")
+            return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /park_usage_summarized endpoint: {e}")
+        logger.error(f"Error in /park_usage_summarized endpoint: {e}")
         return {"error": str(e)}
 
 @app.get("/nps_to_state_distance")
@@ -192,6 +287,7 @@ def get_nps_to_state_distance(national_park_name: Optional[str] = None, state_pa
     Returns distances from national parks to state parks.
     Optionally filter by national park name and state park name (case-insensitive, partial match).
     """
+    logger.info(f"/nps_to_state_distance called with national_park_name={national_park_name}, state_park_name={state_park_name}")
     try:
         base_query = "SELECT * FROM CURATED.NPS_TO_STATE_DISTANCE"
         params = []
@@ -207,10 +303,10 @@ def get_nps_to_state_distance(national_park_name: Optional[str] = None, state_pa
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
+        logger.info(f"/nps_to_state_distance query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        import logging
-        logging.error(f"Error in /nps_to_state_distance endpoint: {e}")
+        logger.error(f"Error in /nps_to_state_distance endpoint: {e}")
         return {"error": str(e)}
 
 @app.get("/park_alert_categories")
@@ -218,11 +314,12 @@ def get_alert_categories():
     """
     Lists all distinct alert categories available for park alerts.
     """
+    logger.info("/park_alert_categories called")
     try:
         query = "SELECT DISTINCT alert_category FROM CURATED.PARK_ALERTS ORDER BY alert_category"
         result = conn.execute(query).fetchdf()
+        logger.info(f"/park_alert_categories query: {query}")
         return [row["alert_category"] for row in result.to_dict(orient="records")]
     except Exception as e:
-        import logging
-        logging.error(f"Error in /park_alert_categories endpoint: {e}")
+        logger.error(f"Error in /park_alert_categories endpoint: {e}")
         return {"error": str(e)}

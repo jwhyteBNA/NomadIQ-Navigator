@@ -9,23 +9,21 @@ def test_duckdb_setup_creates_connection(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake.db"
     original_connect = duckdb.connect
     monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
-    
-    conn = duckdb_setup()
-    assert isinstance(conn, duckdb.DuckDBPyConnection)
-    assert db_path.exists()
-    conn.close()
+
+    with duckdb_setup() as conn:
+        assert isinstance(conn, duckdb.DuckDBPyConnection)
+        assert db_path.exists()
 
 def test_ducklake_catalog_and_schema_creation(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake_catalog_and_schema_creation.db"
     original_connect = duckdb.connect
     monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
-    conn = duckdb_setup()
-    data_path = str(tmp_path / "data")
-    catalog_path = str(tmp_path / "catalog")
-    ducklake_init(conn, data_path, catalog_path)
-    result = conn.execute("PRAGMA database_list").fetchall()
-    assert any("my_ducklake" in row for row in result)
-    conn.close()
+    with duckdb_setup() as conn:
+        data_path = str(tmp_path / "data")
+        catalog_path = str(tmp_path / "catalog")
+        ducklake_init(conn, data_path, catalog_path)
+        result = conn.execute("PRAGMA database_list").fetchall()
+        assert any("my_ducklake" in row for row in result)
 
 def test_setup_ducklake_sql_calls():
     class DummyConn:
@@ -57,12 +55,11 @@ def test_ducklake_init_with_invalid_path(tmp_path, monkeypatch):
     db_path = tmp_path / "test_ducklake_init_with_invalid_path.db"
     original_connect = duckdb.connect
     monkeypatch.setattr("duckdb.connect", lambda *args, **kwargs: original_connect(str(db_path)))
-    conn = duckdb_setup()
-    data_path = "/invalid/path"
-    catalog_path = "/invalid/catalog"
-    with pytest.raises(Exception):
-        ducklake_init(conn, data_path, catalog_path)
-    conn.close()
+    with duckdb_setup() as conn:
+        data_path = "/invalid/path"
+        catalog_path = "/invalid/catalog"
+        with pytest.raises(Exception):
+            ducklake_init(conn, data_path, catalog_path)
 
 def test_duckdb_install_extension(tmp_path, monkeypatch):
     monkeypatch.setattr("duckdb.install_extension", lambda ext: None)

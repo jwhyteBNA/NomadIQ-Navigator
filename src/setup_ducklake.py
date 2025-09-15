@@ -15,11 +15,11 @@ def setup_ducklake():
     data_path = os.path.join(parent_path, "data")
     catalog_path = os.path.join(parent_path, "catalog.ducklake")
 
-    conn = duckdb_setup(read_only=False)
-    ducklake_init(conn, data_path, catalog_path)
-    ducklake_connect_minio(conn)
-    ducklake_schema_creation(conn)
-    conn.close()
+    with duckdb_setup(read_only=False) as conn:
+        logger.info("DuckDB connection established")
+        ducklake_init(conn, data_path, catalog_path)
+        ducklake_connect_minio(conn)
+        ducklake_schema_creation(conn)
 
     logger.info("Success! DuckLake setup complete.")
 

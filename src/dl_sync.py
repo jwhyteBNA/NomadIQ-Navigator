@@ -24,27 +24,25 @@ def ducklake_sync():
     source_folder = f"s3://{os.getenv('MINIO_BUCKET_NAME')}"
     start_time = time.time()
     
-    conn = duckdb_setup(read_only=False)
-    ducklake_init(conn, data_path, catalog_path)
-    ducklake_connect_minio(conn)
+    with duckdb_setup(read_only=False) as conn:
+        logger.info("DuckDB connection established")
+        ducklake_init(conn, data_path, catalog_path)
+        ducklake_connect_minio(conn)
 
-    sync_tables(conn, logger, source_folder, schema="RAW", mode="ingest")
-    cleanup_db_folders(raw_ducklake_folder)
-    data_quality_checks()
+        sync_tables(conn, logger, source_folder, schema="RAW", mode="ingest")
+        cleanup_db_folders(raw_ducklake_folder)
+        data_quality_checks()
 
-    transform_folder = os.path.join(parent_path, "sql")
-    staged_sql_folder = os.path.join(transform_folder, "staged")
-    staged_ducklake_folder = os.path.join(data_path, "STAGED")
-    sync_tables(conn, logger, staged_sql_folder, schema="STAGED", mode="transform")
-    cleanup_db_folders(staged_ducklake_folder)
+        transform_folder = os.path.join(parent_path, "sql")
+        staged_sql_folder = os.path.join(transform_folder, "staged")
+        staged_ducklake_folder = os.path.join(data_path, "STAGED")
+        sync_tables(conn, logger, staged_sql_folder, schema="STAGED", mode="transform")
+        cleanup_db_folders(staged_ducklake_folder)
 
-    curated_sql_folder = os.path.join(transform_folder, "curated")
-    curated_ducklake_folder = os.path.join(data_path, "CURATED")
-    sync_tables(conn, logger, curated_sql_folder, schema="CURATED", mode="transform")
-    cleanup_db_folders(curated_ducklake_folder)
-
-    conn.close()
-    logger.info("DuckLake connection closed")
+        curated_sql_folder = os.path.join(transform_folder, "curated")
+        curated_ducklake_folder = os.path.join(data_path, "CURATED")
+        sync_tables(conn, logger, curated_sql_folder, schema="CURATED", mode="transform")
+        cleanup_db_folders(curated_ducklake_folder)
 
     end_time = time.time()
     duration = end_time - start_time
