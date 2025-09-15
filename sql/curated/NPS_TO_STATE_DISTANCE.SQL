@@ -13,6 +13,8 @@ SELECT
     sp.street_address AS state_park_address,
     sp.city AS state_park_city,
     sp.zip AS state_park_zip,
+    sp.longitude AS state_park_longitude,
+    sp.latitude AS state_park_latitude,
     sp.function AS state_park_function,
     sp.camping_available,
     sp.boating_available,

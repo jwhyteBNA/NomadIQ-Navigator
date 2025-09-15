@@ -4,12 +4,27 @@ import numpy as np
 import altair as alt
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
 API_URL = "http://localhost:8000"
 
 
+def get_park_usage_summarized(park_name=None, aggregate=False, year=None):
+    """Fetch summarized usage data for all parks or a specific park, optionally filtered by year."""
+    params = {}
+    if aggregate:
+        params["aggregate"] = "true"
+    if park_name:
+        params["park_name"] = park_name
+    if year:
+        params["year"] = year
+    resp = requests.get(f"{API_URL}/parks/usage-annual", params=params)
+    if resp.status_code == 200:
+        return resp.json()
+    return []
+
 def fetch_all_parks():
-    resp = requests.get(f"{API_URL}/park_profile")
+    resp = requests.get(f"{API_URL}/parks")
     if resp.status_code == 200:
         df = pd.DataFrame(resp.json())
         return ["All Parks"] + sorted(df["name"].tolist())
@@ -26,20 +41,19 @@ selected_park = st.sidebar.selectbox(
 selected_parks = None
 if selected_park == "All Parks":
     selected_parks = st.sidebar.multiselect(
-        "Filter Parks for Recreation Chart", all_parks[1:], default=all_parks[1:3])
+        "Filter Annual Visit Data By Park", all_parks[1:], default=all_parks[1:3])
 
 
 st.title(f"NomadIQ Navigator Dashboard - {selected_park}")
 
 def get_all_parks():
-    resp = requests.get(f"{API_URL}/park_profile")
+    resp = requests.get(f"{API_URL}/parks")
     if resp.status_code == 200:
         return pd.DataFrame(resp.json())
     return pd.DataFrame()
 
 parks_df = get_all_parks()
 if not parks_df.empty:
-    # Move map above profile table
     st.subheader("National Parks Map")
     if selected_park == "All Parks":
         parks_df["highlight"] = False
@@ -80,7 +94,6 @@ if not parks_df.empty:
         if not park_row.empty:
             park_info = park_row.iloc[0]
             st.subheader(f"{selected_park} Profile")
-            # Card-style columns for key info
             col1, col2, col3 = st.columns(3)
             col1.metric("Park Code", park_info.get("park_code", "N/A"))
             col2.metric("State(s)", park_info.get("states", "N/A"))
@@ -101,7 +114,6 @@ if not parks_df.empty:
             st.markdown(f"**Email:** {park_info.get('email', 'N/A')}")
             st.markdown(f"**Phone:** {park_info.get('phone_number', 'N/A')}{' ext. ' + str(park_info.get('phone_extension')) if park_info.get('phone_extension') else ''}")
 
-            # Format entrance fees as a bulleted list
             entrance_fees = park_info.get('entrance_fees', 'N/A')
             if entrance_fees and entrance_fees != 'N/A':
                 fee_items = [fee.strip() for fee in entrance_fees.split(',') if fee.strip()]
@@ -116,17 +128,14 @@ if not parks_df.empty:
             st.markdown(f"**Activities:** {park_info.get('activities', 'N/A')}")
             st.markdown(f"**Park Themes:** {park_info.get('park_themes', 'N/A')}")
 
-
-            # Only show chart if a single park is selected
             starting_park = park_info.get("name", None)
             if starting_park:
                 try:
-                    response = requests.get(f"http://localhost:8000/nps_distances?starting_national_park={starting_park.lower()}")
+                    response = requests.get(f"http://localhost:8000/parks/distances?starting_national_park={starting_park.lower()}")
                     if response.status_code == 200:
                         distances_data = response.json()
                         if distances_data:
                             dist_df = pd.DataFrame(distances_data)
-                            # Sort by distance ascending (closest parks first)
                             dist_df = dist_df.sort_values("distance_miles", ascending=True)
                             st.subheader(f"Distances from {starting_park} to Other Parks")
                             chart = alt.Chart(dist_df).mark_bar().encode(
@@ -145,9 +154,9 @@ if not parks_df.empty:
 
 def get_park_profile(name=None):
 	if name is None or name == "All Parks":
-		resp = requests.get(f"{API_URL}/park_profile")
+		resp = requests.get(f"{API_URL}/parks")
 	else:
-		resp = requests.get(f"{API_URL}/park_profile", params={"name": name})
+		resp = requests.get(f"{API_URL}/parks", params={"name": name})
 	if resp.status_code == 200:
 		return resp.json()
 	return {}
@@ -156,27 +165,26 @@ profile = get_park_profile(selected_park)
 
 
 def get_rec_visitor_data(name=None):
-	if name is None or name == "All Parks":
-		resp = requests.get(f"{API_URL}/nps_park_usage_annual")
-	else:
-		resp = requests.get(f"{API_URL}/nps_park_usage_annual", params={"name": name})
-	if resp.status_code == 200:
-		return resp.json()
-	return []
+    if name is None or name == "All Parks":
+        resp = requests.get(f"{API_URL}//parks/usage-monthly")
+    else:
+        resp = requests.get(f"{API_URL}/parks/usage-monthly", params={"park_name": name})
+    if resp.status_code == 200:
+        return resp.json()
+    return []
 
 
 def get_park_alerts(park_name=None):
 	if park_name is None or park_name == "All Parks":
-		resp = requests.get(f"{API_URL}/park_alerts")
+		resp = requests.get(f"{API_URL}/parks/alerts")
 	else:
-		resp = requests.get(f"{API_URL}/park_alerts", params={"park_name": park_name})
+		resp = requests.get(f"{API_URL}/parks/alerts", params={"park_name": park_name})
 	if resp.status_code == 200:
 		return resp.json()
 	return []
 
 alerts = get_park_alerts(selected_park)
 if isinstance(alerts, list) and alerts:
-    # Filter out alerts where both alert_title and alert_category are null/empty
     filtered_alerts = [a for a in alerts if a.get("alert_title") not in [None, ""] or a.get("alert_category") not in [None, ""]]
     alerts_sorted = sorted(
         filtered_alerts,
@@ -184,26 +192,21 @@ if isinstance(alerts, list) and alerts:
         reverse=True
     )
     df_alerts = pd.DataFrame(alerts_sorted)
-    # Bar chart for alert categories
     if not df_alerts.empty and "alert_category" in df_alerts.columns:
         st.subheader("Park Alerts by Category")
-        # Map unknown/empty/null categories to 'Other'
         df_alerts["alert_category"] = df_alerts["alert_category"].fillna("")
         df_alerts["alert_category"] = df_alerts["alert_category"].apply(lambda x: x if x in ["Park Closure", "Danger", "Road Closure", "Information"] else "Other")
-        # Define custom order and colors
         category_order = ["Park Closure", "Danger", "Road Closure", "Information", "Other"]
         category_colors = {
-            "Park Closure": "#d62728",  # Red
-            "Danger": "#ff7f0e",       # Orange
-            "Road Closure": "#ffeb3b", # Yellow
-            "Information": "#2ca02c",  # Green
-            "Other": "#800080"          # Purple
+            "Park Closure": "#d62728", 
+            "Danger": "#ff7f0e",       
+            "Road Closure": "#ffeb3b", 
+            "Information": "#2ca02c",  
+            "Other": "#800080"          
         }
         alert_counts = df_alerts["alert_category"].value_counts().reset_index()
         alert_counts.columns = ["alert_category", "count"]
-        # Merge to get details for tooltips
         merged = pd.merge(alert_counts, df_alerts, on="alert_category", how="left")
-        # Set categorical order
         merged["alert_category"] = pd.Categorical(merged["alert_category"], categories=category_order, ordered=True)
         chart_alerts = alt.Chart(merged).mark_bar().encode(
             x=alt.X("alert_category:N", title="Alert Category", sort=category_order),
@@ -216,7 +219,6 @@ if isinstance(alerts, list) and alerts:
             title="Number of Alerts by Category"
         )
         st.altair_chart(chart_alerts, use_container_width=True)
-    # ...existing code for alert table and info...
     if selected_park == "All Parks":
         st.subheader("Alerts for All Parks")
         st.dataframe(df_alerts)
@@ -229,17 +231,15 @@ else:
 
 # --- Function for Plotly Monthly Recreation Chart ---
 def show_monthly_recreation_chart(selected_parks):
-    # Fetch all parks' monthly recreation data in one API call
     all_monthly_data = get_rec_visitor_data(None)
     df_all_monthly = pd.DataFrame(all_monthly_data)
-    # Only keep rows with valid month/year and recreation visits
     if not df_all_monthly.empty and all(col in df_all_monthly.columns for col in ["Year", "Month", "RecreationVisits", "park_name"]):
         df_all_monthly = df_all_monthly[df_all_monthly["Year"].notnull() & df_all_monthly["Month"].notnull()]
         df_all_monthly = df_all_monthly[(df_all_monthly["Year"] != 0) & (df_all_monthly["Month"] != 0)]
         df_all_monthly = df_all_monthly[df_all_monthly["Year"].apply(lambda x: pd.notna(x) and np.isfinite(x))]
         df_all_monthly = df_all_monthly[df_all_monthly["Month"].apply(lambda x: pd.notna(x) and np.isfinite(x))]
         df_all_monthly["Month"] = df_all_monthly["Month"].astype(int)
-        # Filter parks client-side
+        df_all_monthly["Year"] = df_all_monthly["Year"].astype(int)
         if not selected_parks or len(selected_parks) == 0:
             parks_to_show = df_all_monthly["park_name"].unique().tolist()
         else:
@@ -247,149 +247,80 @@ def show_monthly_recreation_chart(selected_parks):
         df_all_monthly = df_all_monthly[df_all_monthly["park_name"].isin(parks_to_show)]
         df_all_monthly = df_all_monthly[df_all_monthly["Month"].between(1,12)]
         df_all_monthly.sort_values(["park_name", "Month"], inplace=True)
+        # Let user select which visit types to plot
         fig = px.line(
             df_all_monthly,
             x="Month",
             y="RecreationVisits",
-            color="park_name",
+            color="Year",
+            line_group="park_name",
             markers=True,
             labels={
                 "Month": "Month",
                 "RecreationVisits": "Recreation Visits",
+                "Year": "Year",
                 "park_name": "Park"
             },
-            title="Monthly Recreational Visits by Park"
+            title="Monthly Recreational Visits by Park (Year Colored)"
         )
         fig.update_layout(xaxis=dict(tickmode='array', tickvals=list(range(1,13)), ticktext=[str(m) for m in range(1,13)]), height=500, width=900)
         import uuid
         chart_key = f"monthly_recreation_chart_{'_'.join([str(p) for p in parks_to_show])}_{uuid.uuid4()}"
-        st.subheader("Monthly Recreational Visits (Plotly)")
+        st.subheader("Park Attendance Trends")
         st.plotly_chart(fig, use_container_width=True, key=chart_key)
     else:
         st.warning("No valid monthly recreation data available.")
 
-# Ensure the monthly recreation chart is rendered immediately after sidebar selection
 
 # Only show the chart once, using sidebar logic
 if selected_park == "All Parks":
-    # If sidebar filter is empty, show all parks
-    if selected_parks is None or len(selected_parks) == 0:
-        # Remove "All Parks" from the list
-        parks_list = [p for p in all_parks if p != "All Parks"]
-        show_monthly_recreation_chart(parks_list)
-    else:
-        show_monthly_recreation_chart(selected_parks)
+    parks_list = selected_parks if selected_parks else [p for p in all_parks if p != "All Parks"]
 else:
-    show_monthly_recreation_chart([selected_park])
+    parks_list = [selected_park]
+show_monthly_recreation_chart(parks_list)
+### --- Annual Totals for All Parks ---
+agg_usage_data = get_park_usage_summarized(aggregate=True)
+if agg_usage_data:
+    df_agg = pd.DataFrame(agg_usage_data)
+    df_agg = df_agg[df_agg["Year"] != 0]
+    usage_melt = df_agg.melt(
+        id_vars=["Year"],
+        value_vars=[
+            "total_recreation_visits",
+            "total_non_recreation_visits",
+            "total_concessioner_camping",
+            "total_tent_campers",
+            "total_rv_campers"
+        ],
+        var_name="VisitType",
+        value_name="Visits"
+    )
+    chart_agg = alt.Chart(usage_melt).mark_bar().encode(
+        x=alt.X("Year:N", title="Year", sort="-y"),
+        y=alt.Y("Visits:Q", title="Visits", stack="zero"),
+        color=alt.Color("VisitType:N", title="Metric"),
+        tooltip=["Year", "VisitType", "Visits"]
+    ).properties(
+        width=900,
+        height=500,
+        title="Annual Totals for All Parks"
+    )
+    st.altair_chart(chart_agg, use_container_width=True)
+else:
+    st.info("No aggregated usage data available.")
 
 
-def get_park_usage_summarized(park_name=None, aggregate=False):
-# --- Park Profile Card (after all function definitions) ---
-    profile = get_park_profile(selected_park)
-    if selected_park == "All Parks":
-        if profile:
-            st.subheader("All Parks Profiles")
-            st.dataframe(profile)
-    elif profile:
-        st.subheader(f"{selected_park} Profile")
-        # Assume profile is a dict or single-row DataFrame
-        if isinstance(profile, dict):
-            park_info = profile
-        elif isinstance(profile, list) and len(profile) > 0:
-            park_info = profile[0]
-        elif isinstance(profile, pd.DataFrame):
-            park_info = profile.iloc[0].to_dict()
-        else:
-            park_info = profile
-
-        # Fetch latest year’s usage summary for selected park
-        usage_data = get_park_usage_summarized(selected_park)
-        latest_year = None
-        if usage_data is not None and isinstance(usage_data, (list, pd.DataFrame)):
-            df_usage = pd.DataFrame(usage_data)
-            if not df_usage.empty and "Year" in df_usage.columns:
-                latest_year = df_usage["Year"].max()
-                latest_row = df_usage[df_usage["Year"] == latest_year].iloc[0]
-                annual_visitors = int(latest_row.get("total_recreation_visits", 0))
-                tent_campers = int(latest_row.get("total_tent_campers", 0))
-                rv_campers = int(latest_row.get("total_rv_campers", 0))
-            else:
-                annual_visitors = tent_campers = rv_campers = 0
-        else:
-            annual_visitors = tent_campers = rv_campers = 0
-
-        # Card-style layout
-        st.markdown(f"### {park_info.get('name', selected_park)} 🏞️")
-        st.markdown(f"**State(s):** {park_info.get('states', 'N/A')}")
-        st.markdown(f"**Designation:** {park_info.get('designation', 'N/A')}")
-        st.markdown(f"**Area:** {park_info.get('area', 'N/A')} acres")
-        st.markdown(f"**Latitude/Longitude:** {park_info.get('latitude', 'N/A')}, {park_info.get('longitude', 'N/A')}")
-
-        # Display metrics in columns
-        col1, col2, col3 = st.columns(3)
-        col1.metric(f"Annual Visitors ({latest_year if latest_year else ''})", f"{annual_visitors:,}")
-        col2.metric(f"Tent Campers ({latest_year if latest_year else ''})", f"{tent_campers:,}")
-        col3.metric(f"RV Campers ({latest_year if latest_year else ''})", f"{rv_campers:,}")
-
-        # Description or info
-        if park_info.get('description'):
-            st.markdown(f"**Description:** {park_info['description']}")
-
-
-# --- Usage summary function (properly defined) ---
-def get_park_usage_summarized(park_name=None, aggregate=False):
-    if aggregate:
-        resp = requests.get(f"{API_URL}/park_usage_summarized", params={"aggregate": "true"})
-    elif park_name is None or park_name == "All Parks":
-        resp = requests.get(f"{API_URL}/park_usage_summarized")
-    else:
-        resp = requests.get(f"{API_URL}/park_usage_summarized", params={"park_name": park_name})
-    if resp.status_code == 200:
-        return resp.json()
-    return []
-
-if selected_park == "All Parks":
-    # Show monthly recreation chart for selected parks (Plotly)
-    show_monthly_recreation_chart(selected_parks)
-    # Show annual totals for all parks
-    agg_usage_data = get_park_usage_summarized(aggregate=True)
-    if agg_usage_data:
-        df_agg = pd.DataFrame(agg_usage_data)
-        # Use correct column name for year
-        year_col = "Year" if "Year" in df_agg.columns else "year"
-        # Remove year 0
-        df_agg = df_agg[df_agg[year_col] != 0]
-        usage_melt = df_agg.melt(
-            id_vars=[year_col],
-            value_vars=["total_recreation_visits", "total_non_recreation_visits", "total_concessioner_camping", "total_tent_campers", "total_rv_campers"],
-            var_name="VisitType",
-            value_name="Visits"
-        )
-        st.subheader("Annual Totals for All Parks")
-        chart_agg = alt.Chart(usage_melt).mark_bar().encode(
-            x=alt.X(f"{year_col}:N", title="Year", sort="-y"),
-            y=alt.Y("Visits:Q", title="Visits", stack="zero"),
-            color=alt.Color("VisitType:N", title="Metric"),
-            tooltip=[year_col, "VisitType", "Visits"]
-        ).properties(
-            width=900,
-            height=500,
-            title="Annual Totals for All Parks"
-        )
-        st.altair_chart(chart_agg, use_container_width=True)
-    else:
-        st.info("No aggregated usage data available.")
-
-    # Also show by park for selected year
-    usage_data = get_park_usage_summarized()
-    if usage_data:
-        df_usage = pd.DataFrame(usage_data)
-        # Remove year 0
-        df_usage = df_usage[df_usage["Year"] != 0]
-        years = sorted(df_usage["Year"].dropna().unique())
-        selected_year = st.sidebar.selectbox("Select Year for Usage Chart", years, index=len(years)-1)
-        df_usage_year = df_usage[df_usage["Year"] == selected_year]
-        # Add all camping and visit metrics to chart
+### --- Annual Usage & Camping by Park for Selected Year ---
+#TODO: Get Camping chart working
+usage_data_all = get_park_usage_summarized()
+df_usage = pd.DataFrame(usage_data_all)
+if "Year" in df_usage.columns:
+    df_usage = df_usage[df_usage["Year"] != 0]
+    years = sorted(df_usage["Year"].dropna().unique())
+    selected_year = st.sidebar.selectbox("Select Year for Usage Chart", years, index=len(years)-1)
+    usage_data = get_park_usage_summarized(aggregate=False, year=selected_year)
+    df_usage_year = pd.DataFrame(usage_data)
+    if not df_usage_year.empty:
         usage_melt = df_usage_year.melt(
             id_vars=["park_name"],
             value_vars=[
@@ -413,66 +344,52 @@ if selected_park == "All Parks":
             title=f"Annual Usage & Camping by Park ({selected_year})"
         )
         st.altair_chart(chart_usage, use_container_width=True)
-    else:
-        pass
-else:
-    usage_data = get_park_usage_summarized(selected_park)
-    if usage_data:
-        df_usage = pd.DataFrame(usage_data)
-        # Remove year 0
-        df_usage = df_usage[df_usage["Year"] != 0]
-        # Main usage chart (all metrics)
-        usage_melt = df_usage.melt(
-            id_vars=["Year"],
-            value_vars=[
-                "total_recreation_visits",
-                "total_non_recreation_visits",
-                "total_concessioner_camping",
-                "total_tent_campers",
-                "total_rv_campers"
-            ],
-            var_name="Metric",
-            value_name="Visits"
-        )
-        st.subheader(f"Annual Usage & Camping for {selected_park}")
-        chart_usage = alt.Chart(usage_melt).mark_bar().encode(
-            x=alt.X("Year:N", title="Year", sort="-y"),
-            y=alt.Y("Visits:Q", title="Visits", stack="zero"),
-            color=alt.Color("Metric:N", title="Metric"),
-            tooltip=["Year", "Metric", "Visits"]
-        ).properties(
-            width=900,
-            height=500,
-            title=f"Annual Usage & Camping for {selected_park}"
-        )
-        st.altair_chart(chart_usage, use_container_width=True)
 
-        # Separate camping chart (grouped bars, proportional)
-        camping_metrics = [
-            "total_concessioner_camping",
-            "total_tent_campers",
-            "total_rv_campers"
-        ]
-        camping_melt = df_usage.melt(
-            id_vars=["Year"],
+        # Camping-only bar chart
+        camping_metrics = ["total_concessioner_camping", "total_tent_campers", "total_rv_campers"]
+        camping_melt = df_usage_year.melt(
+            id_vars=["park_name"],
             value_vars=camping_metrics,
             var_name="CampingType",
             value_name="Campers"
         )
-        st.subheader(f"Annual Camping Breakdown for {selected_park}")
         chart_camping = alt.Chart(camping_melt).mark_bar().encode(
-            x=alt.X("Year:N", title="Year", sort="-y"),
-            y=alt.Y("Campers:Q", title="Number of Campers"),
-            color=alt.Color("CampingType:N", title="Camping Type", scale=alt.Scale(scheme="set2")),
-            tooltip=["Year", "CampingType", "Campers"]
+            x=alt.X("park_name:N", title="Park", sort="-y"),
+            y=alt.Y("Campers:Q", title="Campers", stack="zero"),
+            color=alt.Color("CampingType:N", title="Camping Type"),
+            tooltip=["park_name", "CampingType", "Campers"]
         ).properties(
             width=900,
-            height=350,
-            title=f"Annual Camping Breakdown for {selected_park}"
+            height=400,
+            title=f"Annual Camping by Park ({selected_year})"
         )
         st.altair_chart(chart_camping, use_container_width=True)
     else:
-        pass
+        st.info("No usage data available for the selected year.")
+else:
+    pass
+
+
+
+# --- National Parks Heatmap (optional) ---
+if 'parks_df' in locals() or 'parks_df' in globals():
+    parks_states = parks_df.copy()
+    parks_states = parks_states.assign(state=parks_states['states'].str.split(',')).explode('state')
+    parks_states['state'] = parks_states['state'].str.strip()
+    park_counts = parks_states['state'].value_counts().reset_index()
+    park_counts.columns = ['state', 'num_parks']
+    fig = px.choropleth(
+        park_counts,
+        locations='state',
+        locationmode='USA-states',
+        color='num_parks',
+        scope='usa',
+        color_continuous_scale='Blues',
+        labels={'num_parks': 'National Parks'},
+        title='Number of National Parks by State'
+    )
+    st.subheader("National Parks by State (Heatmap)")
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def get_parks_to_landmarks(park_name=None, state_abbr=None, limit=100, offset=0):
@@ -483,23 +400,16 @@ def get_parks_to_landmarks(park_name=None, state_abbr=None, limit=100, offset=0)
         params["landmark_state"] = state_abbr
     params["limit"] = limit
     params["offset"] = offset
-    resp = requests.get(f"{API_URL}/nps_parks_to_landmarks", params=params)
+    resp = requests.get(f"{API_URL}/parks/landmarks", params=params)
     if resp.status_code == 200:
         return resp.json()
     return []
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Parks to Landmarks Table")
-
-
-
-# Main page filters for Parks to Nearby Landmarks
 st.subheader("Parks to Nearby Landmarks")
 col_landmark1, col_landmark2 = st.columns(2)
 park_filter = col_landmark1.text_input("Filter by Park Name")
 state_filter = col_landmark2.text_input("Filter by State")
 
-# Use filters for API call
 landmarks_data = get_parks_to_landmarks(
     park_name=park_filter if park_filter else None,
     state_abbr=state_filter if state_filter else None,
@@ -511,14 +421,13 @@ if landmarks_data:
     st.dataframe(df_landmarks)
 
 
-
 def get_landmarks_summary(state=None, state_abbr=None):
     params = {}
     if state:
         params["state"] = state
     if state_abbr:
         params["state_abbr"] = state_abbr
-    resp = requests.get(f"{API_URL}/landmarks_summary", params=params)
+    resp = requests.get(f"{API_URL}/landmarks", params=params)
     if resp.status_code == 200:
         return resp.json()
     return {}
@@ -527,7 +436,6 @@ selected_state_abbr = None
 if selected_park != "All Parks":
     park_row = parks_df[parks_df["name"].str.lower() == selected_park.lower()]
     if not park_row.empty:
-        # Use first abbreviation if multiple
         selected_state_abbr = park_row.iloc[0]["states"].split(",")[0].strip().upper()
 
 if selected_park == "All Parks":
@@ -536,16 +444,14 @@ else:
     summary_data = get_landmarks_summary(state_abbr=selected_state_abbr)
 
 if summary_data:
+    df_state = pd.DataFrame(summary_data["by_state"])
     colorful_palette = [
         "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231",
         "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe",
         "#008080", "#e6beff", "#9a6324", "#fffac8", "#800000",
         "#aaffc3", "#808000", "#ffd8b1", "#000075", "#808080"
     ]
-
-    # By State
-    df_state = pd.DataFrame(summary_data["by_state"])
-    st.subheader("Landmark Counts by State (Summary)")
+    st.subheader("National Register of Historic Landmarks Details")
     chart_state = alt.Chart(df_state).mark_bar().encode(
         x=alt.X("state:N", title="State", sort="-y"),
         y=alt.Y("count:Q", title="Count"),
@@ -558,9 +464,21 @@ if summary_data:
     )
     st.altair_chart(chart_state, use_container_width=True)
 
+    # Plotly choropleth heatmap using summary data (only once)
+    fig = px.choropleth(
+        df_state,
+        locations='state_abbr',
+        locationmode='USA-states',
+        color='count',
+        scope='usa',
+        color_continuous_scale='YlOrRd',
+        labels={'count': 'Landmarks'},
+        title='Number of Landmarks by State (Summary)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
     # By Category
     df_cat = pd.DataFrame(summary_data["by_category"])
-    st.subheader("Landmark Counts by Category of Property")
     chart_cat = alt.Chart(df_cat).mark_bar().encode(
         x=alt.X("category_of_property:N", title="Category", sort="-y"),
         y=alt.Y("count:Q", title="Count"),
@@ -575,7 +493,6 @@ if summary_data:
 
     # By Level of Significance
     df_level = pd.DataFrame(summary_data["by_level"])
-    st.subheader("Landmark Counts by Level of Significance")
     chart_level = alt.Chart(df_level).mark_bar().encode(
         x=alt.X("level_of_significance:N", title="Level of Significance", sort="-y"),
         y=alt.Y("count:Q", title="Count"),
@@ -589,3 +506,74 @@ if summary_data:
     st.altair_chart(chart_level, use_container_width=True)
 else:
     st.info("No summary data available for parks-to-landmarks.")
+
+def get_state_parks_near_national_park(national_park_name):
+    resp = requests.get(f"{API_URL}/parks/state-distances", params={"national_park_name": national_park_name})
+    if resp.status_code == 200:
+        return resp.json()
+    return []
+
+activity_icons = {
+    "camping_available": "🏕️",
+    "boating_available": "🚤",
+    "biking_hiking_available": "🚴",
+    "fishing_available": "🎣",
+    "golf_available": "⛳",
+    "equestrian_available": "🐎",
+    "ohv_available": "🏍️",
+    "winter_recreation_available": "❄️",
+    "wildlife_available": "🦌"
+}
+
+def format_activities(row):
+    return " ".join([icon for key, icon in activity_icons.items() if row.get(key)])
+
+
+# --- State Parks Map Visualization ---
+if selected_park != "All Parks":
+    state_parks_data = get_state_parks_near_national_park(selected_park)
+    if state_parks_data and isinstance(state_parks_data, list) and len(state_parks_data) > 0:
+        df_state_parks = pd.DataFrame(state_parks_data)
+        st.subheader(f"Utah State Parks Near {selected_park}")
+        fig = go.Figure()
+        if not parks_df.empty:
+            np_row = parks_df[parks_df["name"].str.lower() == selected_park.lower()]
+            if not np_row.empty:
+                np_lat = np_row.iloc[0]["latitude"]
+                np_lon = np_row.iloc[0]["longitude"]
+                fig.add_trace(go.Scattermap(
+                    lat=[np_lat],
+                    lon=[np_lon],
+                    mode='markers',
+                    marker=dict(size=16, color='blue'),
+                    name=selected_park,
+                    text=[selected_park],
+                ))
+        # State park markers
+        for _, row in df_state_parks.iterrows():
+            activities = format_activities(row)  # e.g., 🏕️ 🚤 🚴
+            hover_text = (
+                f"{row['state_park_name']} ({row['distance_miles']} mi)<br>"
+                f"{row['state_park_address']}, {row['state_park_city']}, {row['state_park_zip']}<br>"
+                f"Activities: {activities}"
+            )
+            fig.add_trace(go.Scattermap(
+                lat=[row['state_park_latitude']],
+                lon=[row['state_park_longitude']],
+                mode='markers',
+                marker=dict(size=12, color='green'),
+                name=row['state_park_name'],
+                text=[hover_text]
+            ))
+        fig.update_layout(
+            mapbox=dict(
+                style="open-street-map",
+                center=dict(lat=np_lat, lon=np_lon),
+                zoom=8
+            ),
+            margin={"r":0,"t":0,"l":0,"b":0},
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No matching state parks found for this national park.")
