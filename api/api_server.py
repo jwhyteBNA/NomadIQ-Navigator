@@ -1,4 +1,5 @@
 from typing import Optional
+import pandas as pd
 from fastapi import FastAPI
 from src.logger import logger_setup
 from src.utilities import duckdb_setup, ducklake_init
@@ -12,143 +13,34 @@ CATALOG_PATH = "catalog.ducklake"
 conn = duckdb_setup(read_only=True)
 ducklake_init(conn, DATA_PATH, CATALOG_PATH)
 
-@app.get("/park_profile")
-def get_park_profile(name: Optional[str] = None, state: Optional[str] = None, designation: Optional[str] = None):
+@app.get("/landmarks", tags=["Landmarks"])
+def get_all_landmarks(state: Optional[str] = None, city: Optional[str] = None):
     """
-    Returns park profile information, optionally filtered by park name and/or national designation (case-insensitive, partial match).
+    Returns all landmarks with full details. Optionally filter by state and city (case-insensitive, partial match).
     """
-    logger.info(f"/park_profile called with name={name}, state={state}, designation={designation}")
+    logger.info(f"/landmarks called with state={state}, city={city}")
     try:
-        base_query = "SELECT * FROM CURATED.NPS_PARK_PROFILE"
+        base_query = "SELECT * FROM CURATED.NATL_LANDMARKS"
         params = []
         conditions = []
-        if name:
-            conditions.append("LOWER(name) LIKE ?")
-            params.append(f"%{name.lower()}%")
         if state:
-            conditions.append("LOWER(states) LIKE ?")
-            params.append(f"%{state.lower()}%")
-        if designation:
-            conditions.append("LOWER(designation) LIKE ?")
-            params.append(f"%{designation.lower()}%")
+            conditions.append("(LOWER(state) LIKE ? OR LOWER(state_abbr) LIKE ?)")
+            params.extend([f"%{state.lower()}%", f"%{state.lower()}%"])
+        if city:
+            conditions.append("LOWER(city) LIKE ?")
+            params.append(f"%{city.lower()}%")
         if conditions:
             query = base_query + " WHERE " + " AND ".join(conditions)
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
-        logger.info(f"/park_profile query: {query} params: {params}")
+        result = result.replace([pd.NA, pd.NaT, float('nan'), float('inf'), -float('inf')], None)
         return result.to_dict(orient="records")
     except Exception as e:
-        logger.error(f"Error in /park_profile endpoint: {e}")
+        logger.error(f"Error in /landmarks endpoint: {e}")
         return {"error": str(e)}
 
-@app.get("/park_alerts")
-def get_park_alerts(park_name: Optional[str] = None, category: Optional[str] = None):
-    """
-    Returns park alerts, optionally filtered by park name and alert category (case-insensitive, partial match).
-    """
-    logger.info(f"/park_alerts called with park_name={park_name}, category={category}")
-    try:
-        base_query = "SELECT * FROM CURATED.PARK_ALERTS"
-        params = []
-        conditions = []
-        if park_name:
-            conditions.append("LOWER(park_name) LIKE ?")
-            params.append(f"%{park_name.lower()}%")
-        if category:
-            conditions.append("LOWER(alert_category) LIKE ?")
-            params.append(f"%{category.lower()}%")
-        if conditions:
-            query = base_query + " WHERE " + " AND ".join(conditions)
-        else:
-            query = base_query
-        result = conn.execute(query, params).fetchdf()
-        logger.info(f"/park_alerts query: {query} params: {params}")
-        return result.to_dict(orient="records")
-    except Exception as e:
-        logger.error(f"Error in /park_alerts endpoint: {e}")
-        return {"error": str(e)}
-
-@app.get("/nps_distances")
-def get_nps_distances(starting_national_park: Optional[str] = None):
-    """
-    Finds the distances between national parks.
-    Optionally filter by starting national park (case-insensitive, partial match).
-    """
-    logger.info(f"/nps_distances called with starting_national_park={starting_national_park}")
-    try:
-        if starting_national_park:
-            query = "SELECT * FROM CURATED.NPS_DISTANCES WHERE LOWER(starting_national_park) LIKE ?"
-            param = f"%{starting_national_park.lower()}%"
-            result = conn.execute(query, [param]).fetchdf()
-        else:
-            query = "SELECT * FROM CURATED.NPS_DISTANCES"
-            result = conn.execute(query).fetchdf()
-        logger.info(f"/nps_distances query: {query}")
-        return result.to_dict(orient="records")
-    except Exception as e:
-        logger.error(f"Error in /nps_distances endpoint: {e}")
-        return {"error": str(e)}
-    
-@app.get("/nps_parks_to_landmarks")
-def get_nps_parks_to_landmarks(
-    park_name: Optional[str] = None,
-    property_name: Optional[str] = None,
-    landmark_city: Optional[str] = None,
-    landmark_county: Optional[str] = None,
-    landmark_state: Optional[str] = None,
-    level_of_significance: Optional[str] = None,        
-    area_of_significance: Optional[str] = None,          
-    category_of_property: Optional[str] = None,     
-    limit: int = 5000,
-    offset: int = 0
-):
-    """
-    Finds parks and their associated landmarks, with optional filters for park name, property name, city, county, and state, as well as area of significance, level of significance, and category of property (all case-insensitive, partial match).
-    Supports pagination with limit and offset.
-    """
-    logger.info(f"/nps_parks_to_landmarks called with park_name={park_name}, property_name={property_name}, landmark_city={landmark_city}, landmark_county={landmark_county}, landmark_state={landmark_state}, level_of_significance={level_of_significance}, area_of_significance={area_of_significance}, category_of_property={category_of_property}, limit={limit}, offset={offset}")
-    try:
-        base_query = "SELECT park_name, property_name AS nearby_landmark, landmark_address AS address, landmark_city AS city, landmark_county AS county, landmark_state AS state, listed_date, level_of_significance, area_of_significance, category_of_property FROM CURATED.NPS_PARKS_TO_LANDMARKS"
-        params = []
-        conditions = []
-        if park_name:
-            conditions.append("LOWER(park_name) LIKE ?")
-            params.append(f"%{park_name.lower()}%")
-        if property_name:
-            conditions.append("LOWER(property_name) LIKE ?")
-            params.append(f"%{property_name.lower()}%")
-        if landmark_city:
-            conditions.append("LOWER(landmark_city) LIKE ?")
-            params.append(f"%{landmark_city.lower()}%")
-        if landmark_county:
-            conditions.append("LOWER(landmark_county) LIKE ?")
-            params.append(f"%{landmark_county.lower()}%")
-        if landmark_state:
-            conditions.append("LOWER(landmark_state) LIKE ?")
-            params.append(f"%{landmark_state.lower()}%")
-        if level_of_significance:
-            conditions.append("LOWER(level_of_significance) LIKE ?")
-            params.append(f"%{level_of_significance.lower()}%")
-        if area_of_significance:
-            conditions.append("LOWER(area_of_significance) LIKE ?")
-            params.append(f"%{area_of_significance.lower()}%")
-        if category_of_property:
-            conditions.append("LOWER(category_of_property) LIKE ?")
-            params.append(f"%{category_of_property.lower()}%")
-        if conditions:
-            query = base_query + " WHERE " + " AND ".join(conditions)
-        else:
-            query = base_query
-        query += f" LIMIT {limit} OFFSET {offset}"
-        result = conn.execute(query, params).fetchdf()
-        logger.info(f"/nps_parks_to_landmarks query: {query} params: {params}")
-        return result.to_dict(orient="records")
-    except Exception as e:
-        logger.error(f"Error in /nps_parks_to_landmarks endpoint: {e}")
-        return {"error": str(e)}
-    
-@app.get("/landmarks_summary")
+@app.get("/landmarks/summary", tags=["Landmarks"])
 def get_landmarks_summary(state: Optional[str] = None, state_abbr: Optional[str] = None):
     """
     Returns summary statistics for landmarks: counts by state, state_abbr, category_of_property, and level_of_significance.
@@ -197,48 +89,167 @@ def get_landmarks_summary(state: Optional[str] = None, state_abbr: Optional[str]
             "by_level": level_stats
         }
     except Exception as e:
-        logger.error(f"Error in /landmarks_summary endpoint: {e}")
+        logger.error(f"Error in /landmarks/summary endpoint: {e}")
         return {"error": str(e)}
 
-@app.get("/nps_park_usage_monthly")
-def get_nps_park_usage_monthly(park_name: Optional[str] = None, year: Optional[int] = None):
+
+@app.get("/parks", tags=["National Parks"])
+def get_park_profile(name: Optional[str] = None, park_code: Optional[str] = None, state: Optional[str] = None,  designation: Optional[str] = None):
     """
-    Returns monthly usage statistics for national parks.
-    Optionally filter by park name (case-insensitive, partial match) and year.
+    Returns park profile information, optionally filtered by park name and/or national designation (case-insensitive, partial match).
     """
-    logger.info(f"/nps_park_usage_monthly called with park_name={park_name}, year={year}")
+    logger.info(f"/parks called with name={name}, park_code={park_code}, state={state}, designation={designation}")
     try:
-        if not park_name and not year:
-            base_query = "SELECT park_name, Year, Month, RecreationVisits FROM CURATED.NPS_PARK_USAGE_ANNUAL"
-        else:
-            base_query = "SELECT * FROM CURATED.NPS_PARK_USAGE_ANNUAL"
+        base_query = "SELECT * FROM CURATED.NPS_PARK_PROFILE"
         params = []
         conditions = []
-        if park_name:
-            conditions.append("LOWER(park_name) LIKE ?")
-            params.append(f"%{park_name.lower()}%")
-        if year:
-            conditions.append("year = ?")
-            params.append(year)
+        if name:
+            conditions.append("LOWER(name) LIKE ?")
+            params.append(f"%{name.lower()}%")
+        if park_code:
+            conditions.append("LOWER(park_code) LIKE ?")
+            params.append(f"%{park_code.lower()}%")
+        if state:
+            conditions.append("LOWER(states) LIKE ?")
+            params.append(f"%{state.lower()}%")
+        if designation:
+            conditions.append("LOWER(designation) LIKE ?")
+            params.append(f"%{designation.lower()}%")
         if conditions:
             query = base_query + " WHERE " + " AND ".join(conditions)
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
-        logger.info(f"/nps_park_usage_annual query: {query} params: {params}")
+        logger.info(f"/park_profile query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        logger.error(f"Error in /nps_park_usage_annual endpoint: {e}")
+        logger.error(f"Error in /park_profile endpoint: {e}")
         return {"error": str(e)}
     
-@app.get("/park_usage_summarized")
-def get_park_usage_summarized(park_name: Optional[str] = None, year: Optional[int] = None, aggregate: Optional[bool] = False):
+
+@app.get("/parks/alerts", tags=["National Parks"])
+def get_park_alerts(park_name: Optional[str] = None, category: Optional[str] = None):
     """
-    Returns summarized park usage statistics.
-    Optionally filter by park name (case-insensitive, partial match) and year.
-    If aggregate=True and no park_name is provided, returns annual totals for all parks combined.
+    Returns park alerts, optionally filtered by park name and alert category (case-insensitive, partial match).
     """
-    logger.info(f"/park_usage_summarized called with park_name={park_name}, year={year}, aggregate={aggregate}")
+    logger.info(f"/parks/alerts called with park_name={park_name}, category={category}")
+    try:
+        base_query = "SELECT * FROM CURATED.PARK_ALERTS"
+        params = []
+        conditions = []
+        if park_name:
+            conditions.append("LOWER(park_name) LIKE ?")
+            params.append(f"%{park_name.lower()}%")
+        if category:
+            conditions.append("LOWER(alert_category) LIKE ?")
+            params.append(f"%{category.lower()}%")
+        if conditions:
+            query = base_query + " WHERE " + " AND ".join(conditions)
+        else:
+            query = base_query
+        result = conn.execute(query, params).fetchdf()
+        # Filter out alerts where alert_title is null
+        if "alert_title" in result.columns:
+            result = result[result["alert_title"].notnull()]
+        logger.info(f"/parks/alerts query: {query} params: {params}")
+        return result.to_dict(orient="records")
+    except Exception as e:
+        logger.error(f"Error in /parks/alerts endpoint: {e}")
+        return {"error": str(e)}
+
+@app.get("/parks/distances", tags=["National Parks"])
+def get_nps_distances(starting_national_park: Optional[str] = None):
+    """
+    Finds the distances between national parks.
+    Optionally filter by starting national park (case-insensitive, partial match).
+    """
+    logger.info(f"/parks/distances called with starting_national_park={starting_national_park}")
+    try:
+        if starting_national_park:
+            query = "SELECT * FROM CURATED.NPS_DISTANCES WHERE LOWER(starting_national_park) LIKE ?"
+            param = f"%{starting_national_park.lower()}%"
+            result = conn.execute(query, [param]).fetchdf()
+        else:
+            query = "SELECT * FROM CURATED.NPS_DISTANCES"
+            result = conn.execute(query).fetchdf()
+        logger.info(f"/parks/distances query: {query}")
+        return result.to_dict(orient="records")
+    except Exception as e:
+        logger.error(f"Error in /parks/distances endpoint: {e}")
+        return {"error": str(e)}
+    
+@app.get("/parks/landmarks", tags=["National Parks"])
+def get_nps_parks_to_landmarks(
+    park_name: Optional[str] = None,
+    property_name: Optional[str] = None,
+    landmark_city: Optional[str] = None,
+    landmark_county: Optional[str] = None,
+    landmark_state: Optional[str] = None,
+    level_of_significance: Optional[str] = None,        
+    area_of_significance: Optional[str] = None,          
+    category_of_property: Optional[str] = None,     
+    limit: int = 5000,
+    offset: int = 0
+):
+    """
+    Finds parks and their associated landmarks, with optional filters for park name, property name, city, county, and state, as well as area of significance, level of significance, and category of property (all case-insensitive, partial match).
+    Supports pagination with limit and offset.
+    """
+    logger.info(f"/parks/landmarks called with park_name={park_name}, property_name={property_name}, landmark_city={landmark_city}, landmark_county={landmark_county}, landmark_state={landmark_state}, level_of_significance={level_of_significance}, area_of_significance={area_of_significance}, category_of_property={category_of_property}, limit={limit}, offset={offset}")
+    try:
+        base_query = "SELECT park_name, property_name AS nearby_landmark, landmark_address AS address, landmark_city AS city, landmark_county AS county, landmark_state AS state, listed_date, level_of_significance, area_of_significance, category_of_property FROM CURATED.NPS_PARKS_TO_LANDMARKS"
+        params = []
+        conditions = []
+        if park_name:
+            conditions.append("LOWER(park_name) LIKE ?")
+            params.append(f"%{park_name.lower()}%")
+        if property_name:
+            conditions.append("LOWER(property_name) LIKE ?")
+            params.append(f"%{property_name.lower()}%")
+        if landmark_city:
+            conditions.append("LOWER(landmark_city) LIKE ?")
+            params.append(f"%{landmark_city.lower()}%")
+        if landmark_county:
+            conditions.append("LOWER(landmark_county) LIKE ?")
+            params.append(f"%{landmark_county.lower()}%")
+        if landmark_state:
+            conditions.append("LOWER(landmark_state) LIKE ?")
+            params.append(f"%{landmark_state.lower()}%")
+        if level_of_significance:
+            conditions.append("LOWER(level_of_significance) LIKE ?")
+            params.append(f"%{level_of_significance.lower()}%")
+        if area_of_significance:
+            conditions.append("LOWER(area_of_significance) LIKE ?")
+            params.append(f"%{area_of_significance.lower()}%")
+        if category_of_property:
+            conditions.append("LOWER(category_of_property) LIKE ?")
+            params.append(f"%{category_of_property.lower()}%")
+        if conditions:
+            query = base_query + " WHERE " + " AND ".join(conditions)
+        else:
+            query = base_query
+        query += f" LIMIT {limit} OFFSET {offset}"
+        result = conn.execute(query, params).fetchdf()
+        logger.info(f"/parks/landmarks query: {query} params: {params}")
+        return result.to_dict(orient="records")
+    except Exception as e:
+        logger.error(f"Error in /parks/landmarks endpoint: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/parks/usage", tags=["National Parks"])
+def get_park_usage(
+    park_name: Optional[str] = None,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    granularity: str = "annual",
+    aggregate: Optional[bool] = False
+):
+    """
+    Returns park usage statistics with flexible granularity (annual or monthly).
+    Optionally filter by park name, year, month, and aggregate totals for all parks.
+    """
+    logger.info(f"/parks/usage called with park_name={park_name}, year={year}, month={month}, granularity={granularity}, aggregate={aggregate}")
     try:
         params = []
         conditions = []
@@ -248,46 +259,61 @@ def get_park_usage_summarized(park_name: Optional[str] = None, year: Optional[in
         if year:
             conditions.append("year = ?")
             params.append(year)
-        if aggregate and not park_name:
-            # Aggregate annual totals for all parks
-            where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
-            query = f"""
-                SELECT year,
-                       SUM(total_recreation_visits) AS total_recreation_visits,
-                       SUM(total_non_recreation_visits) AS total_non_recreation_visits,
-                       SUM(total_concessioner_camping) AS total_concessioner_camping,
-                       SUM(total_tent_campers) AS total_tent_campers,
-                       SUM(total_rv_campers) AS total_rv_campers
-                FROM CURATED.PARK_USAGE_SUMMARIZED
-                {where_clause}
-                GROUP BY year
-                ORDER BY year
-            """
-            result = conn.execute(query, params).fetchdf()
-            logger.info(f"/park_usage_summarized aggregate query: {query} params: {params}")
-            # Replace NaN with 0 for JSON compliance
-            result = result.fillna(0)
-            return result.to_dict(orient="records")
-        else:
-            base_query = "SELECT * FROM CURATED.PARK_USAGE_SUMMARIZED"
+        if granularity == "monthly" and month:
+            conditions.append("month = ?")
+            params.append(month)
+        if granularity == "monthly":
+            base_query = "SELECT * FROM CURATED.NPS_PARK_USAGE_ANNUAL"
             if conditions:
                 query = base_query + " WHERE " + " AND ".join(conditions)
             else:
                 query = base_query
             result = conn.execute(query, params).fetchdf()
-            logger.info(f"/park_usage_summarized query: {query} params: {params}")
+            logger.info(f"/parks/usage monthly query: {query} params: {params}")
             return result.to_dict(orient="records")
+        elif granularity == "annual":
+            if aggregate and not park_name:
+                where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+                query = f"""
+                    SELECT year,
+                           SUM(total_recreation_visits) AS total_recreation_visits,
+                           SUM(total_non_recreation_visits) AS total_non_recreation_visits,
+                           SUM(total_concessioner_camping) AS total_concessioner_camping,
+                           SUM(total_tent_campers) AS total_tent_campers,
+                           SUM(total_rv_campers) AS total_rv_campers
+                    FROM CURATED.PARK_USAGE_SUMMARIZED
+                    {where_clause}
+                    GROUP BY year
+                    ORDER BY year
+                """
+                result = conn.execute(query, params).fetchdf()
+                logger.info(f"/parks/usage annual aggregate query: {query} params: {params}")
+                result = result.fillna(0)
+                return result.to_dict(orient="records")
+            else:
+                base_query = "SELECT * FROM CURATED.PARK_USAGE_SUMMARIZED"
+                if conditions:
+                    query = base_query + " WHERE " + " AND ".join(conditions)
+                else:
+                    query = base_query
+                query += " ORDER BY total_recreation_visits DESC"
+                result = conn.execute(query, params).fetchdf()
+                logger.info(f"/parks/usage annual query: {query} params: {params}")
+                result = result.replace([pd.NA, pd.NaT, float('nan'), float('inf'), -float('inf')], None)
+                return result.to_dict(orient="records")
+        else:
+            return {"error": "Invalid granularity. Use 'annual' or 'monthly'."}
     except Exception as e:
-        logger.error(f"Error in /park_usage_summarized endpoint: {e}")
+        logger.error(f"Error in /parks/usage endpoint: {e}")
         return {"error": str(e)}
 
-@app.get("/nps_to_state_distance")
+@app.get("/parks/state-distances", tags=["National Parks"])
 def get_nps_to_state_distance(national_park_name: Optional[str] = None, state_park_name: Optional[str] = None):
     """
     Returns distances from national parks to state parks.
     Optionally filter by national park name and state park name (case-insensitive, partial match).
     """
-    logger.info(f"/nps_to_state_distance called with national_park_name={national_park_name}, state_park_name={state_park_name}")
+    logger.info(f"/parks/state-distances called with national_park_name={national_park_name}, state_park_name={state_park_name}")
     try:
         base_query = "SELECT * FROM CURATED.NPS_TO_STATE_DISTANCE"
         params = []
@@ -303,23 +329,8 @@ def get_nps_to_state_distance(national_park_name: Optional[str] = None, state_pa
         else:
             query = base_query
         result = conn.execute(query, params).fetchdf()
-        logger.info(f"/nps_to_state_distance query: {query} params: {params}")
+        logger.info(f"/parks/state-distances query: {query} params: {params}")
         return result.to_dict(orient="records")
     except Exception as e:
-        logger.error(f"Error in /nps_to_state_distance endpoint: {e}")
-        return {"error": str(e)}
-
-@app.get("/park_alert_categories")
-def get_alert_categories():
-    """
-    Lists all distinct alert categories available for park alerts.
-    """
-    logger.info("/park_alert_categories called")
-    try:
-        query = "SELECT DISTINCT alert_category FROM CURATED.PARK_ALERTS ORDER BY alert_category"
-        result = conn.execute(query).fetchdf()
-        logger.info(f"/park_alert_categories query: {query}")
-        return [row["alert_category"] for row in result.to_dict(orient="records")]
-    except Exception as e:
-        logger.error(f"Error in /park_alert_categories endpoint: {e}")
+        logger.error(f"Error in /parks/state-distances endpoint: {e}")
         return {"error": str(e)}
