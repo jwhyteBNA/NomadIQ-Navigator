@@ -22,8 +22,6 @@ st.markdown("""
 	</style>
 """, unsafe_allow_html=True)
 
-st.set_page_config(page_title="Parks Wayfinder Dashboard", layout="wide")
-
 st.set_page_config(page_title="NomadIQ Navigator Dashboard", layout="wide")
 
 
@@ -63,7 +61,8 @@ with hero:
 					hover_name="name",
 					color="designation",
 					scope="north america",
-					title="National Parks Locations"
+					title="National Parks Locations",
+					labels={"designation": "Designation"}
 				)
 				fig.update_geos(
 					center=dict(lat=39.8283, lon=-98.5795),
@@ -150,11 +149,11 @@ with hero:
 		<div style='background-color:#222; border-radius:8px; padding:1rem 0.5rem; margin-bottom:1rem;'>
 			<div style='display: flex; flex-direction: row; justify-content: center; gap: 2rem;'>
 				<div style='text-align:center;'>
-					<span style='font-size:0.9rem; font-weight:600; color:#fff;'>Parks with Closure Alerts</span><br>
+					<span style='font-size:0.9rem; font-weight:600; color:#fff;'>Parks with Any Closure Alerts</span><br>
 					<span style='font-size:1.1rem; font-weight:bold; color:#fff;'>{parks_with_closure_alerts}</span>
 				</div>
 				<div style='text-align:center;'>
-					<span style='font-size:0.9rem; font-weight:600; color:#fff;'>% of Parks with Alerts (This Month)</span><br>
+					<span style='font-size:0.9rem; font-weight:600; color:#fff;'>% of Parks with Any Alerts (This Month)</span><br>
 					<span style='font-size:1.1rem; font-weight:bold; color:#fff;'>{pct_parks_with_alerts:.1f}%</span>
 				</div>
 			</div>
@@ -279,12 +278,12 @@ with trends:
 	title_suffix = 'Year'
 	if selected_park == "All Parks":
 		df_line = usage.groupby(x_col, as_index=False)['total_recreation_visits'].sum()
-		title_line = f"Total Recreation Visitors per {title_suffix} (All Parks)"
+		title_line = f"Total Visitors per {title_suffix} (All Parks)"
 	else:
 		df_line = usage[usage['park_name'] == selected_park].groupby(x_col, as_index=False)['total_recreation_visits'].sum()
-		title_line = f"Total Recreation Visitors per {title_suffix} ({selected_park})"
+		title_line = f"Total Visitors per {title_suffix} ({selected_park})"
 	if not df_line.empty:
-		fig_line = px.line(df_line, x=x_col, y='total_recreation_visits', markers=True, title=title_line)
+		fig_line = px.line(df_line, x=x_col, y='total_recreation_visits', markers=True, title=title_line, labels={'total_recreation_visits': 'Total Visitors'})
 		fig_line.update_traces(line=dict(width=3), marker=dict(size=8))
 		fig_line.update_layout(margin=dict(l=0, r=0, t=40, b=0))
 		st.plotly_chart(fig_line, use_container_width=True)
@@ -293,12 +292,21 @@ with trends:
 
 	st.markdown(f"### Visitor Type Breakdown (Facet Grid, {title_suffix})")
 	visitor_types = ['total_recreation_visits', 'total_non_recreation_visits', 'total_concessioner_camping', 'total_tent_campers', 'total_rv_campers']
+	visitor_type_labels = {
+    "total_recreation_visits": "Total Recreation Visits",
+    "total_non_recreation_visits": "Total Non-Recreation Visits",
+    "total_concessioner_camping": "Total Concessioner Camping",
+    "total_tent_campers": "Total Tent Campers",
+    "total_rv_campers": "Total RV Campers"
+}
+
 	if selected_park == "All Parks":
 		df_facet = usage.groupby(x_col, as_index=False)[visitor_types].sum()
 	else:
 		df_facet = usage[usage['park_name'] == selected_park].groupby(x_col, as_index=False)[visitor_types].sum()
 	if not df_facet.empty:
 		df_facet_melt = df_facet.melt(id_vars=x_col, value_vars=visitor_types, var_name='Visitor Type', value_name='Count')
+		df_facet_melt['Visitor Type'] = df_facet_melt['Visitor Type'].map(visitor_type_labels)
 		fig_facet = px.line(
 			df_facet_melt,
 			x=x_col,
@@ -306,7 +314,7 @@ with trends:
 			facet_col='Visitor Type',
 			color='Visitor Type',
 			facet_col_wrap=2,
-			title=f'Visitor Type Trends by {title_suffix}',
+			title="Park Visitors by Type",
 			markers=True
 		)
 		fig_facet.update_yaxes(matches=None)
@@ -331,7 +339,11 @@ with trends:
 					x='level_of_significance',
 					y='count',
 					color='level_of_significance',
-					title="Number of Landmarks by Level of Significance (Excluding International)"
+					title="Number of Landmarks by Level of Significance (Excluding International)",
+					labels={
+						'level_of_significance': 'Level of Significance',
+						'count': 'Count'
+					}
 				)
 				st.plotly_chart(fig_bar, use_container_width=True)
 		with col_lm_treemap:

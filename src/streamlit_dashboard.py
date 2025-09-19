@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 
 API_URL = "http://localhost:8000"
 
+st.set_page_config(page_title="NomadIQ Website Mockup", layout="wide")
 
 def get_park_usage_summarized(park_name=None, aggregate=False, year=None):
     """Fetch summarized usage data for all parks or a specific park, optionally filtered by year."""
@@ -59,16 +60,17 @@ if not parks_df.empty:
         parks_df["highlight"] = False
         parks_df["highlight_label"] = "All Parks"
         fig = px.scatter_map(
-            parks_df,
-            lat="latitude",
-            lon="longitude",
-            hover_name="name",
-            color="highlight_label",
-            size=[10]*len(parks_df),
-            zoom=3,
-            center={"lat": 39.8283, "lon": -98.5795},
-            height=600
-        )
+        parks_df,
+        lat="latitude",
+        lon="longitude",
+        hover_name="name",
+        color="highlight_label",
+        size=[10]*len(parks_df),
+        zoom=3,
+        center={"lat": 39.8283, "lon": -98.5795},
+        height=600
+    )
+        fig.update_layout(showlegend=False)
     else:
         parks_df["highlight"] = parks_df["name"].str.lower() == selected_park.lower()
         parks_df["highlight_label"] = parks_df["highlight"].replace({True: "Selected Park", False: "All Parks"})
@@ -83,6 +85,7 @@ if not parks_df.empty:
             center={"lat": 39.8283, "lon": -98.5795},
             height=600
         )
+        fig.update_layout(showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
     # Profile below map
