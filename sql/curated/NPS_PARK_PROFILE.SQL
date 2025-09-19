@@ -7,6 +7,7 @@ SELECT
     p.longitude,
     p.designation,
     p.description,
+    p.url,
     a.line1 AS address_line1,
     a.line2 AS address_line2,
     a.city AS address_city,
@@ -43,7 +44,7 @@ LEFT JOIN (
     GROUP BY park_id
 ) act ON p.id = act.park_id
 GROUP BY
-    p.park_code, p.name, p.states, p.latitude, p.longitude, p.designation, p.description,
+    p.park_code, p.name, p.states, p.latitude, p.longitude, p.designation, p.description, p.url,
     a.line1, a.line2, a.city, a.state, a.postal,
     e.email_address,
     ph.phone_number, ph.extension, ef.entrance_fees,

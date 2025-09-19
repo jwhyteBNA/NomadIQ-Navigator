@@ -2,6 +2,8 @@ CREATE OR REPLACE TABLE CURATED.NPS_TO_STATE_DISTANCE AS
 SELECT
     np.park_code AS national_park_code,
     np.name AS national_park_name,
+    np.latitude AS national_park_latitude,
+    np.longitude AS national_park_longitude,
     sp.park_name AS state_park_name,
     ROUND(
             3959 * acos(
@@ -13,6 +15,8 @@ SELECT
     sp.street_address AS state_park_address,
     sp.city AS state_park_city,
     sp.zip AS state_park_zip,
+    sp.longitude AS state_park_longitude,
+    sp.latitude AS state_park_latitude,
     sp.function AS state_park_function,
     sp.camping_available,
     sp.boating_available,

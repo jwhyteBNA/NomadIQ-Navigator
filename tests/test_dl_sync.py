@@ -1,9 +1,14 @@
 import os
 import pytest
 from unittest import mock
+from unittest.mock import MagicMock
 from src.dl_sync import ducklake_sync
 
-@mock.patch("src.dl_sync.duckdb_setup")
+mock_conn = MagicMock()
+mock_conn.__enter__.return_value = mock_conn
+mock_conn.__exit__.return_value = None
+
+@mock.patch("src.dl_sync.duckdb_setup", return_value=mock_conn)
 @mock.patch("src.dl_sync.ducklake_init")
 @mock.patch("src.dl_sync.ducklake_connect_minio")
 @mock.patch("src.dl_sync.sync_tables")
@@ -14,10 +19,10 @@ def test_ducklake_sync_runs(
 	mock_cleanup_db_folders,
 	mock_sync_tables,
 	mock_ducklake_connect_minio,
-mock_ducklake_init,
+	mock_ducklake_init,
 	mock_duckdb_setup,
 ):
-	mock_duckdb_setup.return_value = mock.Mock()
+	mock_duckdb_setup.return_value = mock_conn
 	os.environ["MINIO_BUCKET_NAME"] = "test-bucket"
 	ducklake_sync()
 	mock_logger.info.assert_any_call("Starting DuckLake sync flow")
@@ -57,10 +62,10 @@ def test_ducklake_sync_empty_folders(
 	mock_cleanup_db_folders,
 	mock_sync_tables,
 	mock_ducklake_connect_minio,
-mock_ducklake_init,
+	mock_ducklake_init,
 	mock_duckdb_setup,
 ):
-	mock_duckdb_setup.return_value = mock.Mock()
+	mock_duckdb_setup.return_value = mock_conn
 	os.environ["MINIO_BUCKET_NAME"] = "test-bucket"
 	with mock.patch("os.path.join", return_value=""):
 		ducklake_sync()
