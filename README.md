@@ -89,3 +89,28 @@ Open http://localhost:4200 in your browser.
 ``` bash
 docker compose down
 ```
+
+## Running the Project
+
+### 1. Start the FastAPI Backend
+
+```sh
+uvicorn api.api_server:app --reload
+```
+- The API will be available at http://localhost:8000
+
+### 2. Launch the Main Dashboard
+
+```sh
+streamlit run src/streamlit_dashboard.py --server.port 8502
+```
+- Access the dashboard at http://localhost:8502
+
+### 3. Launch the Compact Dashboard
+
+```sh
+streamlit run src/streamlit_dashboard_compact.py --server.port 8503
+```
+- Access the compact dashboard at http://localhost:8503
+
+---
