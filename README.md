@@ -82,8 +82,9 @@ python src/ducklake_pipeline.py
 ```
 Or trigger a deployment from the Prefect UI or CLI.
 
-8. **Access the Prefect dashboard**:
-Open http://localhost:4200 in your browser.
+8. **Access the docker container dashboards**:
+Prefect: Open http://localhost:4200 in your browser.
+MinIO: Open http://localhost:9001 in your browser.
 
 9. **Stop services**:
 ``` bash
